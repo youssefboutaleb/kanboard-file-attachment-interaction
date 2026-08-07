@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "======================================================"
+echo " 🚀 Git Pre-Push Hook: Verification Suite"
+echo "======================================================"
+
+if [ -f "vendor/bin/phpunit" ]; then
+    vendor/bin/phpunit
+    echo "✔ All tests passed before push."
+fi

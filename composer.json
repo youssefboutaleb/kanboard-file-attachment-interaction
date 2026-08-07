@@ -1,0 +1,45 @@
+{
+    "name": "kanboard/plugin-file-attachment-interaction",
+    "description": "Secure, modular file interaction framework for Kanboard task attachments",
+    "type": "kanboard-plugin",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Senior Staff & Security Engineering Team"
+        }
+    ],
+    "require": {
+        "php": ">=8.1"
+    },
+    "require-dev": {
+        "phpstan/phpstan": "^1.10",
+        "phpunit/phpunit": "^9.6 || ^10.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "Kanboard\\Plugin\\FileInteractionCore\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Kanboard\\Plugin\\FileInteractionCore\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "vendor/bin/phpunit",
+        "test-unit": "vendor/bin/phpunit --testsuite Unit",
+        "test-integration": "vendor/bin/phpunit --testsuite Integration",
+        "phpstan": "vendor/bin/phpstan analyse src --level=8",
+        "check": [
+            "composer validate --strict",
+            "@test"
+        ],
+        "package": "bash scripts/package-plugin.sh",
+        "setup-hooks": "bash scripts/setup-hooks.sh",
+        "agent-verify": "bash scripts/agent-verify.sh"
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "sort-packages": true
+    }
+}

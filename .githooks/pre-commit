@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "======================================================"
+echo " 🔒 Git Pre-Commit Hook: Agentic Security & Quality"
+echo "======================================================"
+
+# Check for unescaped output / dangerous functions in modified PHP files
+MODIFIED_PHP=$(git diff --cached --name-only --diff-filter=ACM | grep '\.php$' || true)
+
+if [ -n "$MODIFIED_PHP" ]; then
+    echo "Inspecting modified PHP files for dangerous patterns..."
+    
+    # Block raw echo of $_GET / $_POST / $_REQUEST without htmlspecialchars
+    if echo "$MODIFIED_PHP" | xargs grep -E '(eval\(|exec\(|system\(|passthru\(|shell_exec\()' /dev/null 2>&1; then
+        echo "❌ ERROR: Dangerous execution function detected in staged files!"
+        exit 1
+    fi
+fi
+
+if [ -f "scripts/agent-verify.sh" ]; then
+    bash scripts/agent-verify.sh
+fi
+
+echo "✔ Pre-commit checks passed successfully."

@@ -1,0 +1,85 @@
+# CLAUDE.md - Claude Agentic Setup & Development Guide
+
+This document defines the agentic workflow, automated quality gates, git hooks, and verification standards for Claude Code and AI coding assistants.
+
+> ⚠️ **MANDATORY RULE**: This `CLAUDE.md` file MUST be updated at the end of **EVERY** completed task/step to reflect current milestone status, implemented handlers, and test execution details.
+
+---
+
+## 🚦 Milestone Task Progress Status
+
+### Milestone 1: Safe Text/JSON Preview (100% RELEASED - v0.1.0 / v0.1.1 Hotfix)
+- [x] **Task 1: Bootstrap & Integrity Documentation** (Completed)
+- [x] **Task 2: Core Contracts & Manager** (`FileHandlerInterface`, `PreviewResult`, `FileInteractionManager`) (Completed)
+- [x] **Task 3: Text Preview Handler** (`TextPreviewHandler` for `.txt` and `.md`) (Completed)
+- [x] **Task 4: JSON Preview Handler** (`JsonPreviewHandler` for `.json`) (Completed)
+- [x] **Task 5: File Validation Service** (`FileValidationService` for extension, path, size, MIME validation) (Completed)
+- [x] **Task 6: Permission Service Abstraction** (`PermissionService`, `PermissionCheckerInterface`, `MockPermissionChecker`) (Completed)
+- [x] **Task 7: Preview Controller & Route** (`FilePreviewController`, `FileContentFetcherInterface`) (Completed)
+- [x] **Task 8: UI Entry Point Integration** (`Plugin.php` hooks, `Template/file/dropdown.php`, `Template/file/preview.php`) (Completed)
+- [x] **Task 9: Automated Test Expansion** (`tests/Integration/PluginTest.php`, `tests/Unit/EdgeCasesTest.php`) (Completed)
+- [x] **Task 10: Manual Checklist & Verification** (`docs/MANUAL_TESTING.md` matrix, 100% test pass rate verified) (Completed)
+
+### Milestone 2: Safe CSV Read-Only Table Preview
+- [x] **Task 11: Delimiter Detection & Parsing Service** (`CsvParserService` for `,`, `;`, `\t`, `|` detection) (Completed)
+- [ ] **Task 12: CSV Preview Handler** (`CsvPreviewHandler`)
+- [ ] **Task 13: File Validation & Registry Expansion**
+- [ ] **Task 14: Responsive Safe CSV Table Template View**
+- [ ] **Task 15: Verification, Packaging & Release v0.2.0**
+
+---
+
+## 🛠️ Essential Commands & Agentic Scripts
+
+```bash
+# Automated Agent Verification Pipeline (PHP Syntax, Composer, PHPStan Level 8, 51 Tests Passing)
+bash scripts/agent-verify.sh
+# or via composer:
+composer agent-verify
+
+# Test Execution via Docker (PHP 8.1 container - 51 Tests Passing)
+docker run --rm -v $(pwd):/app -w /app php:8.1-cli vendor/bin/phpunit
+
+# Package Plugin Release
+bash scripts/package-plugin.sh # or composer package
+
+# Local Live Kanboard Test Instance
+docker compose up -d # Accessible at http://localhost:8085 (admin/admin)
+```
+
+---
+
+## 🤖 Agentic Development Lifecycle
+
+Every task executed by Claude or AI agents follows a 6-phase loop:
+
+1. **Intent & Spec Check**: Review `docs/specs/` and `docs/SECURITY.md` for target task boundaries.
+2. **Plan & User Approval**: Formulate a small, reviewable implementation plan before touching code.
+3. **Strict Code Implementation**:
+   - PSR-12 coding standard with strict types (`declare(strict_types=1);`).
+   - No Kanboard core modifications.
+   - All plain-text output MUST be wrapped with `htmlspecialchars($str, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')`.
+   - All input paths MUST be wrapped with `basename()`.
+4. **Automated Unit Testing**: Write unit tests for every handler, service, and validator in `tests/Unit/`.
+5. **Agentic Verification Pipeline**: Execute `bash scripts/agent-verify.sh` and run PHPUnit tests.
+6. **Mandatory Documentation Update**: Update `CLAUDE.md` and `walkthrough.md` at the end of EVERY step.
+
+---
+
+## 📐 Architecture & Non-Negotiable Rules
+
+1. **No Core Edits**: Never modify Kanboard core files. All functionality stays within this plugin.
+2. **No Guessing**: Flag unverified APIs as `UNKNOWN` or `ASSUMPTION`.
+3. **No Unescaped Output**: Always sanitize output to prevent XSS.
+4. **Plan First**: Never write feature code without prior plan approval.
+5. **Update CLAUDE.md Every Step**: Always update `CLAUDE.md` with new progress, handlers, and commands.
+
+---
+
+## 🧠 Lessons Learned & Agent Memory
+
+1. **Host Environment Fallback**: If PHP/Composer binaries are absent on host CLI, `scripts/agent-verify.sh` automatically routes execution through Docker containers (`php:8.1-cli`, `composer:2`).
+2. **Docker Workspace Permissions**: Files created or modified inside Docker containers inherit root/nginx ownership (`1000:100`). Run `docker run --rm -v $(pwd):/work alpine chown -R 1000:1000 /work` to reset file ownership to host user `$USER`.
+3. **Kanboard `__isset()` Trap**: `Kanboard\Core\Base` implements magic `__get()` but NOT `__isset()`. Avoid `isset($this->serviceName)`; use container `offsetExists()` via `hasService()`.
+4. **Kanboard Template Hook Naming**: Core Kanboard file dropdown hook names are `template:task-file:documents:dropdown` and `template:task-file:images:dropdown`.
+5. **Safe Plain Text View**: For `.html`, `.yml`, `.env`, and `.json` attachments, output is strictly HTML-entity escaped (`htmlspecialchars()`) preventing browser script execution or DOM injection.

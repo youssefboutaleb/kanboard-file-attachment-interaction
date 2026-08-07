@@ -1,0 +1,15 @@
+services:
+  kanboard:
+    image: kanboard/kanboard:v1.2.37
+    container_name: kanboard_test_instance
+    ports:
+      - "8085:80"
+    volumes:
+      - .:/var/www/app/plugins/FileInteractionCore
+      - kanboard_data:/var/www/app/data
+    environment:
+      - DEBUG=true
+    restart: unless-stopped
+
+volumes:
+  kanboard_data:

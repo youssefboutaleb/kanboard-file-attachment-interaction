@@ -1,0 +1,7 @@
+{
+    "name": "kanboard-file-interaction-core",
+    "description": "Secure, modular file interaction framework for Kanboard task attachments",
+    "guide": "CLAUDE.md",
+    "verificationScript": "scripts/agent-verify.sh",
+    "hooksPath": ".githooks"
+}
