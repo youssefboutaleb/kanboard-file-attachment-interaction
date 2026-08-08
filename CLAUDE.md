@@ -34,20 +34,28 @@ This document defines the agentic workflow, automated quality gates, git hooks, 
 - [x] **Task 19: Template Views & Validation Registry Expansion** (`Template/file/markdown_preview.php`, 5-handler registry) (Completed)
 - [x] **Task 20: Verification, Packaging & Release v0.3.0** (`CHANGELOG.md`, `dist/FileInteractionCore-0.3.0.zip`, 142 tests passing 100%) (Completed)
 
+### Milestone 4: PDF Embedded Read-Only Viewer (100% RELEASED - v0.4.0)
+- [x] **Task 21: PDF Preview Handler** (`PdfPreviewHandler` for `.pdf` and `application/pdf`) (Completed)
+- [x] **Task 22: PDF Validation & Registry Expansion** (`FileValidationService` 10MB PDF cap, 6-handler registry, dropdown whitelist) (Completed)
+- [x] **Task 23: Sandboxed PDF Modal Template View** (`Template/file/pdf_preview.php`, `FilePreviewController` PDF template dispatching) (Completed)
+- [x] **Task 24: Verification, Packaging & Release v0.4.0** (`CHANGELOG.md`, `dist/FileInteractionCore-0.4.0.zip`, live HTTP verification against Kanboard v1.2.37, 189 tests passing 100%) (Completed)
+
 ---
 
 ## 🛠️ Essential Commands & Agentic Scripts
 
 ```bash
-# Automated Agent Verification Pipeline (PHP Syntax, Composer, PHPStan Level 8, 142 Tests Passing)
+# Automated Agent Verification Pipeline (PHP Syntax, Composer, PHPStan Level 8, 189 Tests Passing)
 bash scripts/agent-verify.sh
 # or via composer:
 composer agent-verify
 
-# Test Execution via Docker (PHP 8.1 container - 142 Tests Passing)
+# Test Execution via Docker (PHP 8.1 container - 189 Tests Passing)
 docker run --rm -v $(pwd):/app -w /app php:8.1-cli vendor/bin/phpunit
 
-# Package Plugin Release v0.3.0
+# Package Plugin Release v0.4.0 (version is read from Plugin.php::getPluginVersion())
+# Output lands in the git-ignored dist/ directory; published archives are
+# attached to GitHub Releases by .github/workflows/release.yml on `v*` tag push.
 bash scripts/package-plugin.sh # or composer package
 
 # Local Live Kanboard Test Instance
@@ -92,3 +100,11 @@ Every task executed by Claude or AI agents follows a 6-phase loop:
 5. **Safe Plain Text View**: For `.html`, `.yml`, `.env`, and `.json` attachments, output is strictly HTML-entity escaped (`htmlspecialchars()`) preventing browser script execution or DOM injection.
 6. **CSV Modal View Dispatch**: `FilePreviewController` dispatches `FileInteractionCore:file/csv_preview` for CSV attachments, rendering responsive data tables with cell entity escaping and truncation notices.
 7. **Markdown & Code Tokenizer**: `CodePreviewHandler` tokenizes code elements using placeholders before HTML span wrapping to prevent comment regexes matching CSS hex colors inside injected span attributes.
+8. **PDF Viewer Dispatch**: `FilePreviewController` dispatches `FileInteractionCore:file/pdf_preview` for PDF attachments, rendering a sandboxed `<object>` container with fallback download links and 10MB file limit bounds.
+9. **`browser` vs `download` Core Action**: `FileViewerController::download` sets `Content-Disposition: attachment` (verified live: `Content-Type: application/octet-stream`), so an `<object data=...>` pointing at it opens a save dialog and never renders. Inline embedding MUST target `FileViewerController::browser`, which serves `.pdf` as `Content-Type: application/pdf` via `FileHelper::getBrowserViewType()`. Keep `download` for the fallback link only.
+10. **Per-Extension Size Caps**: `FileValidationService::EXTENSION_MAX_SIZE_BYTES` overrides `DEFAULT_MAX_SIZE_BYTES` (500 KB) per format — `pdf` is capped at 10 MB. `validateFileSize()` takes an optional `$extension`; omitting it keeps the global default, so existing call sites are unaffected.
+11. **Binary MIME Strictness**: `pdf` is deliberately absent from the `text/plain` fallback tolerated by every other extension in `MIME_MAP`. `FileValidationServiceTest::testEveryAllowedExtensionHasMimeMapping` skips binary formats for this reason.
+12. **`text->bytes()` Output Format**: Kanboard's `TextHelper::bytes()` emits bare suffixes (`1.01M`, `512k`) — not `1.01 MB`. Template tests must mirror the core implementation verbatim or they assert a format the UI never produces.
+13. **No `version` Field in `composer.json`**: it made `composer validate --strict` exit 1 and broke the GitHub Actions CI job on every release. The field is now removed — `Plugin.php::getPluginVersion()` is the SINGLE source of truth, and `scripts/package-plugin.sh` reads the archive version from there. `PluginTest` guards both facts. Note that any edit to `composer.json` still invalidates the `composer.lock` `content-hash`; re-run `docker run --rm -v $(pwd):/app -w /app composer:2 composer update --lock --no-install`.
+14. **Kanboard User-API Limits**: JSON-RPC as `admin:admin` can call `getVersion`/`getAllProjects`/`createProject`, but `createTask` and `addProjectUser` return `403 Forbidden`. For live route verification, log in over the web form (`AuthController::check` with a `csrf_token`) and reuse the session cookie instead.
+15. **Releases, Not Repository Blobs**: `dist/` is git-ignored. Pushing a `v*` tag triggers `.github/workflows/release.yml`, which verifies the tag matches `Plugin.php`, builds the archive, extracts the matching `CHANGELOG.md` section as release notes, and attaches the ZIP as a GitHub Release asset.

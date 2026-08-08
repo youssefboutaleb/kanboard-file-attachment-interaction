@@ -18,6 +18,7 @@ use Kanboard\Plugin\FileInteractionCore\Handler\CodePreviewHandler;
 use Kanboard\Plugin\FileInteractionCore\Handler\CsvPreviewHandler;
 use Kanboard\Plugin\FileInteractionCore\Handler\JsonPreviewHandler;
 use Kanboard\Plugin\FileInteractionCore\Handler\MarkdownPreviewHandler;
+use Kanboard\Plugin\FileInteractionCore\Handler\PdfPreviewHandler;
 use Kanboard\Plugin\FileInteractionCore\Handler\TextPreviewHandler;
 use Kanboard\Plugin\FileInteractionCore\Service\FileValidationService;
 use Kanboard\Plugin\FileInteractionCore\Service\PermissionService;
@@ -51,11 +52,14 @@ class FilePreviewController extends BaseController
         if ($interactionManager === null) {
             $interactionManager = new FileInteractionManager();
             // Registration order is significant — first match wins:
-            //   1. Csv/Markdown/Json claim narrow, unambiguous formats.
-            //   2. Code claims the remaining source & config extensions. It is
+            //   1. Pdf claims the only binary format and must precede every text
+            //      handler so a .pdf never falls through to an escaped-text view.
+            //   2. Csv/Markdown/Json claim narrow, unambiguous formats.
+            //   3. Code claims the remaining source & config extensions. It is
             //      registered AFTER Json so .json keeps its pretty-printed view.
-            //   3. Text is the catch-all: it accepts ANY text/* MIME type, so it
+            //   4. Text is the catch-all: it accepts ANY text/* MIME type, so it
             //      must always be registered last.
+            $interactionManager->registerHandler(new PdfPreviewHandler());
             $interactionManager->registerHandler(new CsvPreviewHandler());
             $interactionManager->registerHandler(new MarkdownPreviewHandler());
             $interactionManager->registerHandler(new JsonPreviewHandler());
@@ -198,9 +202,10 @@ class FilePreviewController extends BaseController
             // Step 1: Enforce ACL permissions
             $this->permissionService->assertUserCanReadFile($projectId, $taskId, $fileId);
 
-            // Step 2: Validate file extension & size bounds
+            // Step 2: Validate file extension & size bounds.
+            // The extension drives the size cap: PDFs get 10 MB, text stays at 500 KB.
             $extension = $this->validationService->validateExtension($safeFilename);
-            $this->validationService->validateFileSize(strlen($content));
+            $this->validationService->validateFileSize(strlen($content), $extension);
 
             // Infer default MIME type if not provided
             $resolvedMime = $mimeType ?? match ($extension) {
@@ -208,6 +213,7 @@ class FilePreviewController extends BaseController
                 'csv' => 'text/csv',
                 'tsv' => 'text/tab-separated-values',
                 'md', 'markdown' => 'text/markdown',
+                'pdf' => 'application/pdf',
                 default => 'text/plain',
             };
 
@@ -264,6 +270,7 @@ class FilePreviewController extends BaseController
     {
         return match ($handlerName) {
             'CsvPreviewHandler' => 'FileInteractionCore:file/csv_preview',
+            'PdfPreviewHandler' => 'FileInteractionCore:file/pdf_preview',
             'MarkdownPreviewHandler', 'CodePreviewHandler' => 'FileInteractionCore:file/markdown_preview',
             default => 'FileInteractionCore:file/preview',
         };

@@ -287,4 +287,79 @@ class FileInteractionManagerTest extends TestCase
         $this->assertNull($this->buildMilestone3Registry()->resolveHandler('exe', 'application/octet-stream'));
         $this->assertNull($this->buildMilestone3Registry()->resolveHandler('svg', 'image/svg+xml'));
     }
+
+    /**
+     * Mirrors the Milestone 4 registry wired up by FilePreviewController, with
+     * PdfPreviewHandler registered ahead of every text handler.
+     */
+    private function buildMilestone4Registry(): FileInteractionManager
+    {
+        $manager = new FileInteractionManager();
+        $manager->registerHandler(new \Kanboard\Plugin\FileInteractionCore\Handler\PdfPreviewHandler());
+        $manager->registerHandler(new \Kanboard\Plugin\FileInteractionCore\Handler\CsvPreviewHandler());
+        $manager->registerHandler(new \Kanboard\Plugin\FileInteractionCore\Handler\MarkdownPreviewHandler());
+        $manager->registerHandler(new \Kanboard\Plugin\FileInteractionCore\Handler\JsonPreviewHandler());
+        $manager->registerHandler(new \Kanboard\Plugin\FileInteractionCore\Handler\CodePreviewHandler());
+        $manager->registerHandler(new \Kanboard\Plugin\FileInteractionCore\Handler\TextPreviewHandler());
+
+        return $manager;
+    }
+
+    public function testMilestone4RegistryResolvesPdfHandler(): void
+    {
+        $manager = $this->buildMilestone4Registry();
+
+        foreach (['application/pdf', 'application/x-pdf', 'application/octet-stream'] as $mimeType) {
+            $handler = $manager->resolveHandler('pdf', $mimeType);
+            $this->assertNotNull($handler, "No handler resolved for .pdf with {$mimeType}");
+            $this->assertSame('PdfPreviewHandler', $handler->getHandlerName());
+        }
+
+        $normalized = $manager->resolveHandler('.PDF ', 'APPLICATION/PDF');
+        $this->assertNotNull($normalized);
+        $this->assertSame('PdfPreviewHandler', $normalized->getHandlerName());
+    }
+
+    /**
+     * TextPreviewHandler claims every text/* MIME type, so a mislabelled PDF must
+     * still land on the binary handler rather than being escaped as plain text.
+     */
+    public function testPdfHandlerTakesPrecedenceOverTextCatchAll(): void
+    {
+        $handler = $this->buildMilestone4Registry()->resolveHandler('pdf', 'text/plain');
+
+        $this->assertNotNull($handler);
+        $this->assertSame('PdfPreviewHandler', $handler->getHandlerName());
+    }
+
+    /**
+     * @dataProvider handlerResolutionProvider
+     */
+    public function testExistingRoutingIsUnaffectedByPdfRegistration(
+        string $extension,
+        string $mimeType,
+        string $expectedHandler
+    ): void {
+        $handler = $this->buildMilestone4Registry()->resolveHandler($extension, $mimeType);
+
+        $this->assertNotNull($handler, "No handler resolved for .{$extension}");
+        $this->assertSame($expectedHandler, $handler->getHandlerName());
+    }
+
+    public function testForcedPdfFormatResolvesPdfHandler(): void
+    {
+        $handler = $this->buildMilestone4Registry()->resolveHandler('pdf', 'application/pdf', 'pdf');
+
+        $this->assertNotNull($handler);
+        $this->assertSame('PdfPreviewHandler', $handler->getHandlerName());
+    }
+
+    public function testUnsupportedBinaryFormatsStillResolveToNullAfterPdfRegistration(): void
+    {
+        $manager = $this->buildMilestone4Registry();
+
+        $this->assertNull($manager->resolveHandler('exe', 'application/x-msdownload'));
+        $this->assertNull($manager->resolveHandler('zip', 'application/zip'));
+        $this->assertNull($manager->resolveHandler('svg', 'image/svg+xml'));
+    }
 }

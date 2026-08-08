@@ -4,6 +4,72 @@ Engineering log of implementation steps and their verification evidence.
 
 ---
 
+## v0.4.0 — PDF Viewer Release Verification (embedded `<object>` would never have rendered)
+
+### 1. Symptom (caught pre-release, never shipped)
+
+Task 23 wired the PDF modal's `<object data>` to Kanboard core's `FileViewerController::download`.
+Static review during Task 24 release verification flagged it before packaging.
+
+### 2. Root cause
+
+`download()` (`app/Controller/FileViewerController.php:146`) calls
+`$this->response->withFileDownload($file['name'])`, which sets `Content-Disposition: attachment`.
+No browser renders an attachment-disposition response inside an `<object>` — it opens a save
+dialog instead, so spec 004 **AC-2** ("modal displays the embedded PDF document cleanly") could
+never have passed.
+
+Core's inline counterpart is `browser()`, which streams through
+`FileHelper::getBrowserViewType($filename)` — that returns `application/pdf` for `.pdf`.
+
+Confirmed live against `kanboard/kanboard:v1.2.37`, file `v2-pharma-parser.pdf` (file_id 12):
+
+```
+action=browser   -> HTTP 200 | Content-Type: application/pdf              | body starts %PDF-
+action=download  -> HTTP 200 | Content-Type: application/octet-stream
+                            | Content-Disposition: attachment; filename="v2-pharma-parser.pdf"
+```
+
+### 3. Fixes applied
+
+| File | Change |
+|---|---|
+| `Template/file/pdf_preview.php` | Split the single URL into `$inlineUrl` (`browser`, used by `<object data>`) and `$downloadUrl` (`download`, used by the two fallback links). |
+| `tests/Integration/PluginTest.php` | 5 new tests: inline-vs-download URL targeting, `rel="noopener noreferrer"` fallback, filename escaping, `project_id` omission, `.pdf` in the dropdown whitelist. |
+| `tests/Integration/PluginTest.php` | `FakeUrlHelper` stub + `FakeTextHelper::bytes()` ported verbatim from core (bare suffixes: `2M`, not `2 MB`). |
+| `composer.lock` | Re-hashed via `composer update --lock --no-install`; the `version` bump invalidates `content-hash` and fails `composer validate --strict`. |
+| `dist/FileInteractionCore-0.3.0.zip` | Restored from git — a prior packaging run had rebuilt it with Milestone 4 code still labelled 0.3.0. |
+
+### 4. Verification
+
+**Live HTTP**, authenticated web session against the running instance:
+
+```
+HTTP 200 |   2190 bytes | v2-pharma-parser.pdf  (PdfPreviewHandler, size badge "1.01M")
+  <object data="/?controller=FileViewerController&amp;action=browser&amp;task_id=1&amp;file_id=12&amp;project_id=1"
+          type="application/pdf">
+```
+
+`sizeBytes` resolves to real content (1.01M badge), confirming the 10 MB cap is enforced against
+actual bytes rather than an empty buffer.
+
+**Pipeline** (`bash scripts/agent-verify.sh`):
+
+```
+✔ PHP Syntax OK          ✔ Composer Validation OK
+✔ PHPStan Level 8: [OK] No errors
+✔ PHPUnit: 186 / 186 (100%)  —  582 assertions
+```
+
+### 5. Known limitation carried into the release
+
+Spec 004 **AC-3** asks for `sandbox="allow-same-origin allow-scripts"`, but `sandbox` is an
+`<iframe>`-only attribute — `<object>` does not support it. Containment currently relies on the
+browser's built-in PDF viewer plus `rel="noopener noreferrer"` on outbound links. Migrating the
+container to a sandboxed `<iframe>` is the open follow-up.
+
+---
+
 ## v0.1.1 — Browser Runtime Repair (Safe Preview returned an empty modal)
 
 ### 1. Symptom

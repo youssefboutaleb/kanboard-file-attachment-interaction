@@ -303,4 +303,26 @@ class FilePreviewControllerRuntimeTest extends TestCase
         $this->assertStringNotContainsString('<script>', $content);
         $this->assertStringContainsString('&lt;script&gt;', $content);
     }
+
+    public function testRendersPdfPreviewTemplateForPdfFile(): void
+    {
+        $template = new FakeTemplate();
+        $response = new FakeResponse();
+
+        $container = $this->buildContainer(
+            ['file_id' => 30, 'task_id' => 1, 'project_id' => 1],
+            ['name' => 'spec.pdf', 'path' => 'tasks/1/spec.pdf', 'task_id' => 1, 'project_id' => 1],
+            "%PDF-1.4 ... binary data ...",
+            $template,
+            $response
+        );
+
+        $controller = new FilePreviewController($container, new PermissionService(new MockPermissionChecker(true)));
+        $controller->show();
+
+        $this->assertSame('FileInteractionCore:file/pdf_preview', $template->renderedTemplate);
+        $this->assertSame(200, $response->statusCode);
+        $this->assertSame('PdfPreviewHandler', $template->renderedVars['handler']);
+        $this->assertTrue($template->renderedVars['metadata']['isBinary']);
+    }
 }

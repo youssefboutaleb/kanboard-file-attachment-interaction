@@ -184,12 +184,125 @@ class FileValidationServiceTest extends TestCase
 
     public function testEveryAllowedExtensionHasMimeMapping(): void
     {
+        // Binary document formats are strictly typed: text/plain is NOT a valid
+        // MIME type for them and is asserted to be rejected separately below.
+        $binaryExtensions = ['pdf'];
+
         foreach (FileValidationService::ALLOWED_EXTENSIONS as $extension) {
-            // text/plain is the universal fallback every mapping must tolerate,
-            // except for strictly typed binary-ish formats (none currently).
+            if (in_array($extension, $binaryExtensions, true)) {
+                continue;
+            }
+
+            // text/plain is the universal fallback every text mapping must tolerate.
             $this->service->validateMimeType($extension, 'text/plain');
         }
 
         $this->assertTrue(true);
+    }
+
+    public function testValidateExtensionAcceptsPdf(): void
+    {
+        $this->assertSame('pdf', $this->service->validateExtension('invoice.pdf'));
+        $this->assertSame('pdf', $this->service->validateExtension('SPECIFICATION.PDF'));
+        $this->assertSame('pdf', $this->service->validateExtension(' Report.PdF '));
+    }
+
+    public function testValidateExtensionSanitizesTraversalOnPdfPaths(): void
+    {
+        $this->assertSame('pdf', $this->service->validateExtension('../../../etc/passwd.pdf'));
+        $this->assertSame('pdf', $this->service->validateExtension('/var/www/data/invoice.pdf'));
+    }
+
+    public function testValidateMimeTypeAcceptsPdfVariants(): void
+    {
+        $this->service->validateMimeType('pdf', 'application/pdf');
+        $this->service->validateMimeType('pdf', 'application/x-pdf');
+        // Object storage backends fall back to octet-stream for unknown binaries
+        $this->service->validateMimeType('pdf', 'application/octet-stream');
+        $this->service->validateMimeType('.PDF', 'APPLICATION/PDF');
+        $this->assertTrue(true);
+    }
+
+    public function testValidateMimeTypeRejectsMismatchedPdfMime(): void
+    {
+        // A PDF announcing itself as renderable text is a spoofing attempt
+        $mismatches = ['text/plain', 'text/html', 'image/png', 'application/json'];
+
+        foreach ($mismatches as $mimeType) {
+            try {
+                $this->service->validateMimeType('pdf', $mimeType);
+                $this->fail("MIME validation should have failed for .pdf with {$mimeType}");
+            } catch (InvalidFileException $e) {
+                $this->assertStringContainsString('does not match expected types', $e->getMessage());
+            }
+        }
+    }
+
+    public function testPdfUsesTenMegabyteSizeLimit(): void
+    {
+        $this->assertSame(10485760, FileValidationService::PDF_MAX_SIZE_BYTES);
+        $this->assertSame(
+            FileValidationService::PDF_MAX_SIZE_BYTES,
+            $this->service->getMaxSizeForExtension('pdf')
+        );
+        $this->assertSame(
+            FileValidationService::PDF_MAX_SIZE_BYTES,
+            $this->service->getMaxSizeForExtension('.PDF')
+        );
+
+        // 5 MB and an exactly-at-cap 10 MB PDF are both accepted
+        $this->service->validateFileSize(5242880, 'pdf');
+        $this->service->validateFileSize(FileValidationService::PDF_MAX_SIZE_BYTES, 'pdf');
+        $this->assertTrue($this->service->validateFile('invoice.pdf', 5242880, 'application/pdf'));
+    }
+
+    public function testValidateFileRejectsOversizedPdf(): void
+    {
+        $this->expectException(InvalidFileException::class);
+        $this->expectExceptionMessage('exceeds maximum allowed limit');
+
+        // 15 MB document (spec 004 TC-PDF-03)
+        $this->service->validateFile('huge.pdf', 15728640, 'application/pdf');
+    }
+
+    /**
+     * The 10 MB allowance is scoped to PDFs only — it must never leak into the
+     * text preview budget, which stays at the tighter 500 KB default.
+     */
+    public function testNonPdfExtensionsKeepDefaultSizeLimit(): void
+    {
+        $this->assertSame(
+            FileValidationService::DEFAULT_MAX_SIZE_BYTES,
+            $this->service->getMaxSizeForExtension('txt')
+        );
+        $this->assertSame(
+            FileValidationService::DEFAULT_MAX_SIZE_BYTES,
+            $this->service->getMaxSizeForExtension(null)
+        );
+
+        $oversizedForText = FileValidationService::DEFAULT_MAX_SIZE_BYTES + 1;
+
+        foreach (['notes.txt', 'export.csv', 'README.md'] as $filename) {
+            try {
+                $this->service->validateFile($filename, $oversizedForText, null);
+                $this->fail("Size validation should have failed for {$filename}");
+            } catch (InvalidFileException $e) {
+                $this->assertStringContainsString('exceeds maximum allowed limit', $e->getMessage());
+            }
+        }
+    }
+
+    public function testExtensionSizeCapsAreConfigurable(): void
+    {
+        $strictService = new FileValidationService(
+            FileValidationService::DEFAULT_MAX_SIZE_BYTES,
+            FileValidationService::ALLOWED_EXTENSIONS,
+            ['pdf' => 1024]
+        );
+
+        $this->assertSame(1024, $strictService->getMaxSizeForExtension('pdf'));
+
+        $this->expectException(InvalidFileException::class);
+        $strictService->validateFileSize(2048, 'pdf');
     }
 }

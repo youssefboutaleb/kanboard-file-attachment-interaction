@@ -1,0 +1,64 @@
+name: Release
+
+# Build the plugin archive and publish it as a GitHub Release asset.
+# Release ZIPs are NOT committed to the repository (see .gitignore).
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Verify tag matches Plugin.php version
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PLUGIN_VERSION=$(sed -n "/function getPluginVersion/,/}/s/.*return '\([^']*\)'.*/\1/p" Plugin.php | head -1)
+
+          echo "tag=${TAG_VERSION} plugin=${PLUGIN_VERSION}"
+
+          if [ "${TAG_VERSION}" != "${PLUGIN_VERSION}" ]; then
+            echo "::error::Tag v${TAG_VERSION} does not match Plugin.php::getPluginVersion() (${PLUGIN_VERSION})"
+            exit 1
+          fi
+
+      - name: Build plugin package
+        run: bash scripts/package-plugin.sh
+
+      - name: Extract release notes from CHANGELOG
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          awk -v v="${VERSION}" '
+            $0 ~ "^## \\["v"\\]" { found = 1; next }
+            found && /^## \[/ { exit }
+            found && $0 != "---" { print }
+          ' CHANGELOG.md > release-notes.md
+
+          if [ ! -s release-notes.md ]; then
+            echo "::warning::No CHANGELOG section found for ${VERSION}; falling back to generated notes."
+          fi
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          ARCHIVE="dist/FileInteractionCore-${VERSION}.zip"
+
+          if [ -s release-notes.md ]; then
+            gh release create "${GITHUB_REF_NAME}" "${ARCHIVE}" \
+              --title "${GITHUB_REF_NAME}" \
+              --notes-file release-notes.md
+          else
+            gh release create "${GITHUB_REF_NAME}" "${ARCHIVE}" \
+              --title "${GITHUB_REF_NAME}" \
+              --generate-notes
+          fi

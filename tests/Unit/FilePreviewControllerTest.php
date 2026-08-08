@@ -196,4 +196,70 @@ class FilePreviewControllerTest extends TestCase
         $this->assertStringNotContainsString('href="javascript:', $response['content']);
         $this->assertStringContainsString('href="#"', $response['content']);
     }
+
+    /**
+     * Spec 004 TC-PDF-01: .pdf attachments must resolve to the PDF handler and
+     * never fall through to the TextPreviewHandler catch-all.
+     */
+    public function testShowRoutesPdfAttachmentToPdfHandler(): void
+    {
+        $pdf = "%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF";
+        $response = $this->controller->show(1, 10, 100, 'invoice.pdf', $pdf);
+
+        $this->assertTrue($response['success']);
+        $this->assertSame('pdf', $response['extension']);
+        $this->assertSame('PdfPreviewHandler', $response['handler']);
+        $this->assertTrue($response['metadata']['isBinary']);
+        $this->assertSame(strlen($pdf), $response['metadata']['sizeBytes']);
+    }
+
+    public function testShowRoutesUppercasePdfExtensionToPdfHandler(): void
+    {
+        $response = $this->controller->show(1, 10, 100, 'SPEC.PDF', '%PDF-1.7');
+
+        $this->assertSame('pdf', $response['extension']);
+        $this->assertSame('PdfPreviewHandler', $response['handler']);
+    }
+
+    /**
+     * A 600 KB PDF exceeds the 500 KB text budget but sits well inside the 10 MB
+     * PDF cap — proof the per-extension override is wired through the controller.
+     */
+    public function testShowAcceptsPdfLargerThanDefaultTextLimit(): void
+    {
+        $largePdf = '%PDF-1.4' . str_repeat('A', 614400);
+        $response = $this->controller->show(1, 10, 100, 'large.pdf', $largePdf);
+
+        $this->assertSame('PdfPreviewHandler', $response['handler']);
+        $this->assertSame(strlen($largePdf), $response['metadata']['sizeBytes']);
+    }
+
+    /**
+     * Spec 004 TC-PDF-02: widening the whitelist for .pdf must not admit other
+     * binary container formats.
+     */
+    public function testShowStillRejectsDisallowedBinaryFormats(): void
+    {
+        foreach (['archive.zip', 'installer.exe', 'report.docx'] as $filename) {
+            try {
+                $this->controller->show(1, 10, 100, $filename, 'PK binary payload');
+                $this->fail("Preview should have been rejected for {$filename}");
+            } catch (InvalidFileException $e) {
+                $this->assertStringContainsString('is not allowed', $e->getMessage());
+            }
+        }
+    }
+
+    /**
+     * Spec 004 TC-PDF-04: ACL enforcement runs before any PDF payload is touched.
+     */
+    public function testShowDeniesPdfPreviewForUnauthorizedUser(): void
+    {
+        $this->mockChecker->setFileAccess(1, 10, 100, false);
+
+        $this->expectException(AccessDeniedException::class);
+        $this->expectExceptionMessage('Access Denied');
+
+        $this->controller->show(1, 10, 100, 'invoice.pdf', '%PDF-1.4');
+    }
 }

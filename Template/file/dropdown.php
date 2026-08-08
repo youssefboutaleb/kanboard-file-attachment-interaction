@@ -4,6 +4,7 @@ $allowedExtensions = [
     'txt', 'json', 'md', 'env', 'ini', 'conf', 'yaml', 'yml', 'xml', 'log', 'html', 'htm',
     'csv', 'tsv',
     'markdown', 'sh', 'bash', 'py', 'php', 'js', 'css', 'sql',
+    'pdf',
 ];
 $extension = strtolower(pathinfo($file['name'] ?? '', PATHINFO_EXTENSION));
 

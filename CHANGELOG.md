@@ -5,6 +5,38 @@ All notable changes to `kanboard-file-interaction-core` will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-08-08
+
+### Added
+- **PDF Embedded Read-Only Viewer Engine**:
+  - `PdfPreviewHandler`: Binary-safe handler for `.pdf` attachments and `application/pdf` / `application/x-pdf` MIME types. The payload is never parsed, decoded, or executed — only size metadata is emitted.
+  - `Template/file/pdf_preview.php`: Embedded modal viewer streaming the document into an `<object type="application/pdf">` container through Kanboard core's inline `FileViewerController::browser` action.
+  - Graceful fallback banner with a secure download link (`rel="noopener noreferrer"`) for browsers without an inline PDF renderer.
+  - Dedicated 10 MB size ceiling for PDF attachments.
+- **Per-Extension Size Cap Mechanism**:
+  - `FileValidationService::EXTENSION_MAX_SIZE_BYTES` overrides the global 500 KB default on a per-format basis; `validateFileSize()` accepts an optional `$extension` argument.
+  - `getMaxSizeForExtension()` accessor, with constructor-injectable caps for testing.
+- **Test Suite Expansion**:
+  - 44 new unit & integration tests covering PDF handler resolution, registration precedence, 10 MB boundary enforcement, MIME spoofing rejection, modal template dispatching, inline-vs-download URL targeting, and filename escaping (total 186 tests, 582 assertions).
+
+### Changed
+- Updated `FileValidationService` to whitelist `pdf`. `MIME_MAP['pdf']` accepts `application/pdf`, `application/x-pdf`, and `application/octet-stream`, and deliberately rejects `text/*` — a PDF announcing itself as renderable text is treated as a spoofing attempt.
+- Updated `FilePreviewController` to register 6 format handlers with `PdfPreviewHandler` FIRST, so binary payloads never fall through to the `TextPreviewHandler` `text/*` catch-all, and to dispatch `FileInteractionCore:file/pdf_preview`.
+- Updated `Template/file/dropdown.php` to expose "Safe Preview" for `.pdf` attachments.
+- Bumped plugin version to `0.4.0` in `Plugin.php` and `composer.json`.
+
+### Fixed
+- PDF viewer `<object>` container now targets the inline `browser` action instead of `download`. The `download` action sets `Content-Disposition: attachment`, which made browsers open a save dialog instead of rendering the document inside the modal.
+
+### Build & CI
+- Removed the top-level `version` field from `composer.json`. It made `composer validate --strict` exit non-zero, failing the GitHub Actions CI job. `Plugin.php::getPluginVersion()` is now the single source of truth, and `scripts/package-plugin.sh` reads the archive version from it.
+- `dist/` is now git-ignored. Release archives are published as GitHub Release assets by the new `.github/workflows/release.yml`, which fires on `v*` tag pushes, verifies the tag matches `Plugin.php`, and uses the matching `CHANGELOG.md` section as release notes.
+
+### Known Limitations
+- Spec 004 AC-3 specifies a `sandbox` attribute, which the HTML `<object>` element does not support (it is an `<iframe>`-only attribute). Script containment currently relies on the browser's built-in PDF viewer. Migrating the container to a sandboxed `<iframe>` is tracked as a follow-up.
+
+---
+
 ## [0.3.0] - 2026-08-08
 
 ### Added

@@ -2,7 +2,18 @@
 set -euo pipefail
 
 PLUGIN_NAME="FileInteractionCore"
-VERSION=$(grep '"version"' composer.json 2>/dev/null | cut -d'"' -f4 || echo "0.1.0")
+
+# Plugin.php::getPluginVersion() is the single source of truth for the release
+# version. composer.json deliberately carries NO "version" field: it makes
+# `composer validate --strict` fail in CI, and Composer derives versions from
+# git tags anyway.
+VERSION=$(sed -n "/function getPluginVersion/,/}/s/.*return '\([^']*\)'.*/\1/p" Plugin.php | head -1)
+
+if [ -z "${VERSION}" ]; then
+    echo "✖ Unable to read the version from Plugin.php::getPluginVersion()" >&2
+    exit 1
+fi
+
 DIST_DIR="dist"
 ARCHIVE_NAME="${DIST_DIR}/${PLUGIN_NAME}-${VERSION}.zip"
 
