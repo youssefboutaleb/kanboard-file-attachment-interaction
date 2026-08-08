@@ -174,4 +174,117 @@ class FileInteractionManagerTest extends TestCase
 
         $this->assertSame($csvHandler, $manager->resolveHandler('csv', 'text/plain', 'csv'));
     }
+
+    /**
+     * Mirrors the Milestone 3 registry wired up by FilePreviewController.
+     */
+    private function buildMilestone3Registry(): FileInteractionManager
+    {
+        $manager = new FileInteractionManager();
+        $manager->registerHandler(new \Kanboard\Plugin\FileInteractionCore\Handler\CsvPreviewHandler());
+        $manager->registerHandler(new \Kanboard\Plugin\FileInteractionCore\Handler\MarkdownPreviewHandler());
+        $manager->registerHandler(new \Kanboard\Plugin\FileInteractionCore\Handler\JsonPreviewHandler());
+        $manager->registerHandler(new \Kanboard\Plugin\FileInteractionCore\Handler\CodePreviewHandler());
+        $manager->registerHandler(new \Kanboard\Plugin\FileInteractionCore\Handler\TextPreviewHandler());
+
+        return $manager;
+    }
+
+    /**
+     * Full resolution matrix for the registered handler chain. Every supported
+     * extension must land on exactly one handler, independent of MIME hints.
+     *
+     * @return array<string, array{string, string, string}>
+     */
+    public static function handlerResolutionProvider(): array
+    {
+        return [
+            'csv table'        => ['csv', 'text/csv', 'CsvPreviewHandler'],
+            'tsv table'        => ['tsv', 'text/tab-separated-values', 'CsvPreviewHandler'],
+            'markdown short'   => ['md', 'text/markdown', 'MarkdownPreviewHandler'],
+            'markdown long'    => ['markdown', 'text/markdown', 'MarkdownPreviewHandler'],
+            'json pretty'      => ['json', 'application/json', 'JsonPreviewHandler'],
+            'yaml config'      => ['yml', 'text/plain', 'CodePreviewHandler'],
+            'yaml long config' => ['yaml', 'text/plain', 'CodePreviewHandler'],
+            'xml markup'       => ['xml', 'text/plain', 'CodePreviewHandler'],
+            'html markup'      => ['html', 'text/html', 'CodePreviewHandler'],
+            'shell script'     => ['sh', 'text/plain', 'CodePreviewHandler'],
+            'python source'    => ['py', 'text/plain', 'CodePreviewHandler'],
+            'php source'       => ['php', 'text/plain', 'CodePreviewHandler'],
+            'javascript'       => ['js', 'text/plain', 'CodePreviewHandler'],
+            'stylesheet'       => ['css', 'text/plain', 'CodePreviewHandler'],
+            'sql script'       => ['sql', 'text/plain', 'CodePreviewHandler'],
+            'plain text'       => ['txt', 'text/plain', 'TextPreviewHandler'],
+            'dotenv'           => ['env', 'text/plain', 'TextPreviewHandler'],
+            'log file'         => ['log', 'text/plain', 'TextPreviewHandler'],
+            'ini config'       => ['ini', 'text/plain', 'TextPreviewHandler'],
+        ];
+    }
+
+    /**
+     * @dataProvider handlerResolutionProvider
+     */
+    public function testMilestone3RegistryResolutionMatrix(
+        string $extension,
+        string $mimeType,
+        string $expectedHandler
+    ): void {
+        $handler = $this->buildMilestone3Registry()->resolveHandler($extension, $mimeType);
+
+        $this->assertNotNull($handler, "No handler resolved for .{$extension}");
+        $this->assertSame($expectedHandler, $handler->getHandlerName());
+    }
+
+    /**
+     * CodePreviewHandler also claims .json, so it must stay registered behind
+     * JsonPreviewHandler to preserve the pretty-printed JSON view.
+     */
+    public function testJsonKeepsPrettyPrintedViewDespiteCodeHandler(): void
+    {
+        $handler = $this->buildMilestone3Registry()->resolveHandler('json', 'application/json');
+
+        $this->assertNotNull($handler);
+        $this->assertSame('JsonPreviewHandler', $handler->getHandlerName());
+    }
+
+    public function testMarkdownWinsOverCatchAllTextHandler(): void
+    {
+        // TextPreviewHandler lists md/markdown in its own allowed extensions
+        $handler = $this->buildMilestone3Registry()->resolveHandler('md', 'text/plain');
+
+        $this->assertNotNull($handler);
+        $this->assertSame('MarkdownPreviewHandler', $handler->getHandlerName());
+    }
+
+    public function testForcedTextFormatOverridesRichHandlers(): void
+    {
+        $manager = $this->buildMilestone3Registry();
+
+        // "view raw" must escape out of the Markdown and Code renderers
+        $forcedOnMarkdown = $manager->resolveHandler('md', 'text/markdown', 'text');
+        $forcedOnSource = $manager->resolveHandler('py', 'text/plain', 'text');
+
+        $this->assertNotNull($forcedOnMarkdown);
+        $this->assertNotNull($forcedOnSource);
+        $this->assertSame('TextPreviewHandler', $forcedOnMarkdown->getHandlerName());
+        $this->assertSame('TextPreviewHandler', $forcedOnSource->getHandlerName());
+    }
+
+    /**
+     * A named format that declines the file falls back to normal resolution
+     * rather than rendering an attachment through an unsuitable handler.
+     */
+    public function testForcedFormatFallsBackWhenHandlerDeclinesExtension(): void
+    {
+        $handler = $this->buildMilestone3Registry()->resolveHandler('txt', 'text/plain', 'markdown');
+
+        $this->assertNotNull($handler);
+        $this->assertSame('TextPreviewHandler', $handler->getHandlerName());
+    }
+
+    public function testUnsupportedExtensionStillResolvesToNull(): void
+    {
+        $this->assertNull($this->buildMilestone3Registry()->resolveHandler('exe', 'application/octet-stream'));
+        $this->assertNull($this->buildMilestone3Registry()->resolveHandler('svg', 'image/svg+xml'));
+    }
 }

@@ -67,7 +67,9 @@ class FilePreviewControllerTest extends TestCase
         $this->expectException(InvalidFileException::class);
         $this->expectExceptionMessage('is not allowed');
 
-        $this->controller->show(1, 10, 100, 'script.php', '<?php echo "evil";');
+        // .php became previewable in Milestone 3; .svg stays rejected because
+        // SVG is an active-content image format, not inert source text.
+        $this->controller->show(1, 10, 100, 'logo.svg', '<svg onload="alert(1)"></svg>');
     }
 
     public function testShowHonorsForcedFormat(): void
@@ -117,5 +119,81 @@ class FilePreviewControllerTest extends TestCase
         $response = $this->controller->show(1, 10, 100, 'notes.txt', "line one\nline two");
 
         $this->assertSame('TextPreviewHandler', $response['handler']);
+    }
+
+    public function testShowRoutesMarkdownAttachmentToMarkdownHandler(): void
+    {
+        $markdown = "# Release Notes\n\n- First\n- Second";
+        $response = $this->controller->show(1, 10, 100, 'NOTES.md', $markdown);
+
+        $this->assertTrue($response['success']);
+        $this->assertSame('MarkdownPreviewHandler', $response['handler']);
+        $this->assertStringContainsString('<h1>Release Notes</h1>', $response['content']);
+        $this->assertSame(1, $response['metadata']['headingCount']);
+    }
+
+    public function testShowRoutesLongMarkdownExtensionToMarkdownHandler(): void
+    {
+        $response = $this->controller->show(1, 10, 100, 'README.markdown', '## Setup');
+
+        $this->assertSame('markdown', $response['extension']);
+        $this->assertSame('MarkdownPreviewHandler', $response['handler']);
+        $this->assertStringContainsString('<h2>Setup</h2>', $response['content']);
+    }
+
+    public function testShowRoutesSourceCodeAttachmentToCodeHandler(): void
+    {
+        $response = $this->controller->show(1, 10, 100, 'analyze.py', "def run():\n    return 1");
+
+        $this->assertSame('CodePreviewHandler', $response['handler']);
+        $this->assertSame('py', $response['metadata']['language']);
+        $this->assertStringContainsString('tok-keyword', $response['content']);
+    }
+
+    /**
+     * The controller must forward the extension so the code handler can label the
+     * language; without it every source file would fall back to "txt".
+     */
+    public function testShowForwardsExtensionAsCodeLanguage(): void
+    {
+        $sql = $this->controller->show(1, 10, 100, 'migration.sql', 'select 1;');
+        $shell = $this->controller->show(1, 10, 100, 'deploy.sh', 'echo hi');
+
+        $this->assertSame('sql', $sql['metadata']['language']);
+        $this->assertSame('sh', $shell['metadata']['language']);
+    }
+
+    public function testShowRoutesConfigMarkupToCodeHandler(): void
+    {
+        $yaml = $this->controller->show(1, 10, 100, 'deploy.yml', "key: value");
+        $xml = $this->controller->show(1, 10, 100, 'feed.xml', '<root></root>');
+
+        $this->assertSame('CodePreviewHandler', $yaml['handler']);
+        $this->assertSame('CodePreviewHandler', $xml['handler']);
+    }
+
+    public function testShowKeepsJsonOnPrettyPrintingHandler(): void
+    {
+        $response = $this->controller->show(1, 10, 100, 'config.json', '{"status":"ok"}');
+
+        $this->assertSame('JsonPreviewHandler', $response['handler']);
+        $this->assertTrue($response['metadata']['validJson']);
+    }
+
+    public function testShowEscapesScriptPayloadInSourceAttachment(): void
+    {
+        $response = $this->controller->show(1, 10, 100, 'evil.php', "<?php echo '<script>alert(1)</script>';");
+
+        $this->assertSame('CodePreviewHandler', $response['handler']);
+        $this->assertStringNotContainsString('<script>', $response['content']);
+        $this->assertStringContainsString('&lt;script&gt;', $response['content']);
+    }
+
+    public function testShowSanitizesMaliciousMarkdownLinks(): void
+    {
+        $response = $this->controller->show(1, 10, 100, 'doc.md', '[Trap](javascript:alert(1))');
+
+        $this->assertStringNotContainsString('href="javascript:', $response['content']);
+        $this->assertStringContainsString('href="#"', $response['content']);
     }
 }

@@ -27,20 +27,27 @@ This document defines the agentic workflow, automated quality gates, git hooks, 
 - [x] **Task 14: Responsive Safe CSV Table Template View** (`Template/file/csv_preview.php`, `FilePreviewController` template selection) (Completed)
 - [x] **Task 15: Verification, Packaging & Release v0.2.0** (`CHANGELOG.md`, `dist/FileInteractionCore-0.2.0.zip`, 72 tests passing 100%) (Completed)
 
+### Milestone 3: Safe Markdown HTML Rendering & Code Syntax Highlighting (100% RELEASED - v0.3.0)
+- [x] **Task 16: Safe Markdown & Syntax Parser Service** (`MarkdownParserService` with XSS script entity escaping & link URI sanitization) (Completed)
+- [x] **Task 17: Markdown Preview Handler** (`MarkdownPreviewHandler` for `.md` and `.markdown`) (Completed)
+- [x] **Task 18: Code Syntax Highlighting Handler** (`CodePreviewHandler` for `.sh`, `.py`, `.js`, `.sql`, `.css`, `.php`, `.yml`, `.xml`) (Completed)
+- [x] **Task 19: Template Views & Validation Registry Expansion** (`Template/file/markdown_preview.php`, 5-handler registry) (Completed)
+- [x] **Task 20: Verification, Packaging & Release v0.3.0** (`CHANGELOG.md`, `dist/FileInteractionCore-0.3.0.zip`, 142 tests passing 100%) (Completed)
+
 ---
 
 ## 🛠️ Essential Commands & Agentic Scripts
 
 ```bash
-# Automated Agent Verification Pipeline (PHP Syntax, Composer, PHPStan Level 8, 72 Tests Passing)
+# Automated Agent Verification Pipeline (PHP Syntax, Composer, PHPStan Level 8, 142 Tests Passing)
 bash scripts/agent-verify.sh
 # or via composer:
 composer agent-verify
 
-# Test Execution via Docker (PHP 8.1 container - 72 Tests Passing)
+# Test Execution via Docker (PHP 8.1 container - 142 Tests Passing)
 docker run --rm -v $(pwd):/app -w /app php:8.1-cli vendor/bin/phpunit
 
-# Package Plugin Release v0.2.0
+# Package Plugin Release v0.3.0
 bash scripts/package-plugin.sh # or composer package
 
 # Local Live Kanboard Test Instance
@@ -84,3 +91,4 @@ Every task executed by Claude or AI agents follows a 6-phase loop:
 4. **Kanboard Template Hook Naming**: Core Kanboard file dropdown hook names are `template:task-file:documents:dropdown` and `template:task-file:images:dropdown`.
 5. **Safe Plain Text View**: For `.html`, `.yml`, `.env`, and `.json` attachments, output is strictly HTML-entity escaped (`htmlspecialchars()`) preventing browser script execution or DOM injection.
 6. **CSV Modal View Dispatch**: `FilePreviewController` dispatches `FileInteractionCore:file/csv_preview` for CSV attachments, rendering responsive data tables with cell entity escaping and truncation notices.
+7. **Markdown & Code Tokenizer**: `CodePreviewHandler` tokenizes code elements using placeholders before HTML span wrapping to prevent comment regexes matching CSS hex colors inside injected span attributes.

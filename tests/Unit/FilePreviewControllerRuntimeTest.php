@@ -91,7 +91,9 @@ class FilePreviewControllerRuntimeTest extends TestCase
         $this->assertSame(7, $vars['taskId']);
         $this->assertSame(3, $vars['projectId']);
         $this->assertSame('deploy.yml', $vars['filename']);
-        $this->assertSame('TextPreviewHandler', $vars['handler']);
+        // Milestone 3: config/markup files moved from TextPreviewHandler to the
+        // syntax-highlighting CodePreviewHandler (spec 003 AC-2).
+        $this->assertSame('CodePreviewHandler', $vars['handler']);
     }
 
     public function testLoadsAttachmentContentFromObjectStorage(): void
@@ -211,5 +213,94 @@ class FilePreviewControllerRuntimeTest extends TestCase
         $this->assertSame('CsvPreviewHandler', $template->renderedVars['handler']);
         $this->assertSame(',', $template->renderedVars['metadata']['delimiter']);
         $this->assertCount(3, $template->renderedVars['metadata']['rows']);
+    }
+
+    public function testRendersMarkdownPreviewTemplateForMarkdownFile(): void
+    {
+        $template = new FakeTemplate();
+        $response = new FakeResponse();
+
+        $container = $this->buildContainer(
+            ['file_id' => 20, 'task_id' => 1, 'project_id' => 1],
+            ['name' => 'README.md', 'path' => 'tasks/1/readme', 'task_id' => 1],
+            "# Project\n\nSee the **docs**.",
+            $template,
+            $response
+        );
+
+        $controller = new FilePreviewController($container, new PermissionService(new MockPermissionChecker(true)));
+        $controller->show();
+
+        $this->assertSame('FileInteractionCore:file/markdown_preview', $template->renderedTemplate);
+        $this->assertSame(200, $response->statusCode);
+        $this->assertSame('MarkdownPreviewHandler', $template->renderedVars['handler']);
+        $this->assertStringContainsString('<h1>Project</h1>', (string) $template->renderedVars['content']);
+    }
+
+    public function testRendersMarkdownPreviewTemplateForSourceCodeFile(): void
+    {
+        $template = new FakeTemplate();
+        $response = new FakeResponse();
+
+        $container = $this->buildContainer(
+            ['file_id' => 21, 'task_id' => 1, 'project_id' => 1],
+            ['name' => 'deploy.sh', 'path' => 'tasks/1/deploy', 'task_id' => 1],
+            "#!/bin/sh\necho \"deploying\"",
+            $template,
+            $response
+        );
+
+        $controller = new FilePreviewController($container, new PermissionService(new MockPermissionChecker(true)));
+        $controller->show();
+
+        $this->assertSame('FileInteractionCore:file/markdown_preview', $template->renderedTemplate);
+        $this->assertSame('CodePreviewHandler', $template->renderedVars['handler']);
+        $this->assertSame('sh', $template->renderedVars['metadata']['language']);
+    }
+
+    public function testRendersPlainPreviewTemplateForTextFile(): void
+    {
+        $template = new FakeTemplate();
+        $response = new FakeResponse();
+
+        $container = $this->buildContainer(
+            ['file_id' => 22, 'task_id' => 1, 'project_id' => 1],
+            ['name' => 'notes.txt', 'path' => 'tasks/1/notes', 'task_id' => 1],
+            'plain body',
+            $template,
+            $response
+        );
+
+        $controller = new FilePreviewController($container, new PermissionService(new MockPermissionChecker(true)));
+        $controller->show();
+
+        $this->assertSame('FileInteractionCore:file/preview', $template->renderedTemplate);
+        $this->assertSame('TextPreviewHandler', $template->renderedVars['handler']);
+    }
+
+    /**
+     * Script-typed attachments are previewable in Milestone 3 but must never
+     * reach the browser as live markup.
+     */
+    public function testSourceCodeAttachmentIsEscapedInRuntimeContext(): void
+    {
+        $template = new FakeTemplate();
+        $response = new FakeResponse();
+
+        $container = $this->buildContainer(
+            ['file_id' => 23, 'task_id' => 1, 'project_id' => 1],
+            ['name' => 'payload.js', 'path' => 'tasks/1/payload', 'task_id' => 1],
+            'document.write("<script>alert(1)</script>");',
+            $template,
+            $response
+        );
+
+        $controller = new FilePreviewController($container, new PermissionService(new MockPermissionChecker(true)));
+        $controller->show();
+
+        $content = (string) $template->renderedVars['content'];
+
+        $this->assertStringNotContainsString('<script>', $content);
+        $this->assertStringContainsString('&lt;script&gt;', $content);
     }
 }

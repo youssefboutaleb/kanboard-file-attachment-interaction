@@ -14,8 +14,10 @@ use Kanboard\Plugin\FileInteractionCore\Core\Contract\FileContentFetcherInterfac
 use Kanboard\Plugin\FileInteractionCore\Core\FileInteractionManager;
 use Kanboard\Plugin\FileInteractionCore\Exception\AccessDeniedException;
 use Kanboard\Plugin\FileInteractionCore\Exception\InvalidFileException;
+use Kanboard\Plugin\FileInteractionCore\Handler\CodePreviewHandler;
 use Kanboard\Plugin\FileInteractionCore\Handler\CsvPreviewHandler;
 use Kanboard\Plugin\FileInteractionCore\Handler\JsonPreviewHandler;
+use Kanboard\Plugin\FileInteractionCore\Handler\MarkdownPreviewHandler;
 use Kanboard\Plugin\FileInteractionCore\Handler\TextPreviewHandler;
 use Kanboard\Plugin\FileInteractionCore\Service\FileValidationService;
 use Kanboard\Plugin\FileInteractionCore\Service\PermissionService;
@@ -48,10 +50,16 @@ class FilePreviewController extends BaseController
 
         if ($interactionManager === null) {
             $interactionManager = new FileInteractionManager();
-            // Registration order matters: TextPreviewHandler accepts ANY text/* MIME
-            // type, so format-specific handlers must be registered ahead of it.
+            // Registration order is significant — first match wins:
+            //   1. Csv/Markdown/Json claim narrow, unambiguous formats.
+            //   2. Code claims the remaining source & config extensions. It is
+            //      registered AFTER Json so .json keeps its pretty-printed view.
+            //   3. Text is the catch-all: it accepts ANY text/* MIME type, so it
+            //      must always be registered last.
             $interactionManager->registerHandler(new CsvPreviewHandler());
+            $interactionManager->registerHandler(new MarkdownPreviewHandler());
             $interactionManager->registerHandler(new JsonPreviewHandler());
+            $interactionManager->registerHandler(new CodePreviewHandler());
             $interactionManager->registerHandler(new TextPreviewHandler());
         }
 
@@ -199,6 +207,7 @@ class FilePreviewController extends BaseController
                 'json' => 'application/json',
                 'csv' => 'text/csv',
                 'tsv' => 'text/tab-separated-values',
+                'md', 'markdown' => 'text/markdown',
                 default => 'text/plain',
             };
 
@@ -217,8 +226,9 @@ class FilePreviewController extends BaseController
             throw $e;
         }
 
-        // Step 4: Generate safe preview result
-        $result = $handler->preview($content);
+        // Step 4: Generate safe preview result.
+        // The extension is forwarded so CodePreviewHandler can label the language.
+        $result = $handler->preview($content, ['extension' => $extension]);
 
         $responseData = [
             'success' => true,
@@ -235,14 +245,28 @@ class FilePreviewController extends BaseController
 
         // If running inside Kanboard HTTP response context, render template HTML
         if ($canRender) {
-            $templateName = $handler->getHandlerName() === 'CsvPreviewHandler'
-                ? 'FileInteractionCore:file/csv_preview'
-                : 'FileInteractionCore:file/preview';
-
-            return $this->response->html($this->template->render($templateName, $responseData));
+            return $this->response->html(
+                $this->template->render($this->resolveTemplateName($handler->getHandlerName()), $responseData)
+            );
         }
 
         return $responseData;
+    }
+
+    /**
+     * Map a resolved handler to its modal template.
+     *
+     * MarkdownPreviewHandler and CodePreviewHandler both emit pre-sanitized HTML,
+     * so they share the rich `markdown_preview` view which renders $content raw.
+     * Every other handler returns entity-escaped plain text for `preview`.
+     */
+    private function resolveTemplateName(string $handlerName): string
+    {
+        return match ($handlerName) {
+            'CsvPreviewHandler' => 'FileInteractionCore:file/csv_preview',
+            'MarkdownPreviewHandler', 'CodePreviewHandler' => 'FileInteractionCore:file/markdown_preview',
+            default => 'FileInteractionCore:file/preview',
+        };
     }
 
     /**

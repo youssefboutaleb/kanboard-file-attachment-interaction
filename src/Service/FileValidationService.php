@@ -14,11 +14,16 @@ class FileValidationService
     public const DEFAULT_MAX_SIZE_BYTES = 524288; // 500 KB
 
     /**
-     * Allowed file extensions (Milestone 1 text/JSON formats + Milestone 2 tabular formats).
+     * Allowed file extensions (Milestone 1 text/JSON, Milestone 2 tabular, Milestone 3 markdown/code).
+     *
+     * NOTE: script-typed source extensions (php, js, sh, bash, py) are previewable
+     * but NEVER executed: CodePreviewHandler entity-escapes the whole payload with
+     * htmlspecialchars() before applying syntax highlighting spans.
      */
     public const ALLOWED_EXTENSIONS = [
         'txt', 'json', 'md', 'env', 'ini', 'conf', 'yaml', 'yml', 'xml', 'log', 'html', 'htm',
-        'csv', 'tsv'
+        'csv', 'tsv',
+        'markdown', 'sh', 'bash', 'py', 'php', 'js', 'css', 'sql'
     ];
 
     /**
@@ -42,6 +47,15 @@ class FileValidationService
         // Spreadsheet exports frequently mislabel .csv as an Excel MIME type
         'csv'  => ['text/csv', 'application/csv', 'text/plain', 'application/vnd.ms-excel'],
         'tsv'  => ['text/tab-separated-values', 'text/tsv', 'text/plain'],
+        'markdown' => ['text/markdown', 'text/x-markdown', 'text/plain'],
+        // Source files are commonly served as text/plain by object storage backends
+        'sh'   => ['text/plain', 'text/x-sh', 'application/x-sh', 'application/x-shellscript'],
+        'bash' => ['text/plain', 'text/x-sh', 'application/x-sh', 'application/x-shellscript'],
+        'py'   => ['text/plain', 'text/x-python', 'application/x-python-code'],
+        'php'  => ['text/plain', 'text/x-php', 'application/x-httpd-php'],
+        'js'   => ['text/plain', 'text/javascript', 'application/javascript', 'application/x-javascript'],
+        'css'  => ['text/plain', 'text/css'],
+        'sql'  => ['text/plain', 'text/x-sql', 'application/sql'],
     ];
 
     private int $maxSizeBytes;

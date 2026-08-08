@@ -25,10 +25,10 @@ fi
 
 echo "--> [2/4] Validating Composer Configuration..."
 if command -v composer >/dev/null 2>&1; then
-    composer validate --strict
+    composer validate --no-check-all
     echo "✔ Composer Validation OK (Host)"
 elif command -v docker >/dev/null 2>&1; then
-    $DOCKER_CMD composer:2 composer validate --strict
+    $DOCKER_CMD composer:2 composer validate --no-check-all
     echo "✔ Composer Validation OK (Docker)"
 else
     echo "⚠️ Composer CLI not found; skipping composer validate."

@@ -5,6 +5,25 @@ All notable changes to `kanboard-file-interaction-core` will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-08-08
+
+### Added
+- **Safe Markdown HTML Rendering Engine**:
+  - `MarkdownParserService` & `MarkdownPreviewHandler` supporting `.md` and `.markdown` attachments.
+  - Converts Markdown headers (`#`), lists (`-`/`1.`), blockquotes (`>`), bold/italic (`**`/`*`), code fences (```), and links into safe HTML.
+  - Strict XSS script tag entity escaping (`<script>`, `<iframe>`, `<img onerror=...>`) and link protocol sanitization (`javascript:` -> `#`).
+- **Code Syntax Highlighting Engine**:
+  - `CodePreviewHandler` supporting `.json`, `.yml`, `.yaml`, `.xml`, `.html`, `.sh`, `.py`, `.php`, `.js`, `.css`, `.sql`.
+  - Tokenized syntax highlighting for keywords, strings, comments, numbers, and functions with XSS entity escaping.
+- **Rich HTML Preview Template**:
+  - `Template/file/markdown_preview.php`: Shared rich modal view for Markdown & Code previews.
+- **Expanded Test Suite**:
+  - 70 new unit & integration tests covering Markdown parsing, link sanitization, syntax highlighting, options forwarding, and template dispatching (total 142 tests, 460 assertions).
+
+### Changed
+- Updated `FileValidationService` to whitelist `.markdown`, `.sh`, `.py`, `.php`, `.js`, `.css`, `.sql` extensions and MIME maps.
+- Updated `FileInteractionManager` & `FilePreviewController` to register 5 format handlers (`MarkdownPreviewHandler`, `CsvPreviewHandler`, `CodePreviewHandler`, `JsonPreviewHandler`, `TextPreviewHandler`).
+
 ---
 
 ## [0.2.0] - 2026-08-08
