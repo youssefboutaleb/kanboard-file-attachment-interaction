@@ -1,60 +1,59 @@
-# Implementation Plan - Milestone 5: Safe In-App Text & JSON Live Editor with Versioning
+# Implementation Plan - Milestone 6: Excel Spreadsheet Interactive Preview Engine
 
-We will implement **Milestone 5 (Safe In-App Text & JSON Live Editor with Versioning)** as specified in [docs/specs/005-live-editor-versioning.md](file:///home/yboutaleb/Documents/kanboard-file-attachment-interaction/docs/specs/005-live-editor-versioning.md).
+We will implement **Milestone 6 (Excel Spreadsheet Interactive Preview Engine)** as specified in [docs/specs/006-excel-spreadsheet-preview.md](file:///home/yboutaleb/Documents/kanboard-file-attachment-interaction/docs/specs/006-excel-spreadsheet-preview.md).
 
 ---
 
 ## 🏗️ Architecture & Security Design
 
-- **Pre-Save Validation Engine (`FileEditValidationService`)**: Validates edit payload size (under 500 KB limit) and syntax (e.g. `json_validate()` to reject malformed JSON before saving).
-- **Attachment Revision & Versioning (`FileVersionService`)**: Supports updating attachment content or creating a versioned revision attachment (`filename_v2.ext`).
-- **Live Edit Controller (`FileEditController`)**: Handles `edit` modal display and `update` POST action with ACL write checks via `PermissionService`.
-- **Responsive Editor View (`Template/file/edit.php`)**: Full-featured modal view with format badge, line indicator, error alert banners, and save controls.
+- **Lightweight OpenXML Parser (`ExcelParserService`)**: Memory-safe `.xlsx` ZIP/XML parser extracting shared string dictionaries and worksheet cell values without heavy 3rd-party dependencies.
+- **Multi-Sheet Tab Navigation**: Allows switching between workbook sheets with responsive tab bar rendering.
+- **Strict Cell-Level XSS Sanitization**: Wraps all string cell values in `htmlspecialchars()` to prevent XSS DOM injection.
+- **Per-Format Size Capping**: Dedicated 5 MB file size limit for spreadsheet files.
 
 ---
 
-## 📋 Task Breakdown for Milestone 5
+## 📋 Task Breakdown for Milestone 6
 
-### Task 25: Pre-Save Validation & Syntax Checking Service (`FileEditValidationService`)
-- **Goal**: Create service validating edit payload size and syntax (e.g. JSON syntax error detection).
+### Task 30: Excel Spreadsheet Parsing Service (`ExcelParserService`)
+- **Goal**: Create service parsing `.xlsx` OpenXML files, extracting sheet names, shared strings, and cell data matrix.
 - **Files to Create/Modify**:
-  - `[NEW]` [src/Service/FileEditValidationService.php](file:///home/yboutaleb/Documents/kanboard-file-attachment-interaction/src/Service/FileEditValidationService.php)
-  - `[NEW]` [tests/Unit/FileEditValidationServiceTest.php](file:///home/yboutaleb/Documents/kanboard-file-attachment-interaction/tests/Unit/FileEditValidationServiceTest.php)
-- **Tests Required**: Unit tests for size limits, valid JSON, invalid JSON syntax error detection, and plain text validation.
+  - `[NEW]` [src/Service/ExcelParserService.php](file:///home/yboutaleb/Documents/kanboard-file-attachment-interaction/src/Service/ExcelParserService.php)
+  - `[NEW]` [tests/Unit/ExcelParserServiceTest.php](file:///home/yboutaleb/Documents/kanboard-file-attachment-interaction/tests/Unit/ExcelParserServiceTest.php)
+- **Tests Required**: Unit tests for shared strings resolution, multi-sheet parsing, row/column bounds, and empty sheet handling.
 
 ---
 
-### Task 26: File Versioning & Revision Service (`FileVersionService`)
-- **Goal**: Create service managing attachment file overwriting and versioned revision creation.
+### Task 31: Excel Preview Handler (`ExcelPreviewHandler`)
+- **Goal**: Implement `FileHandlerInterface` supporting `.xlsx` and `.xls` extensions, returning structured sheet matrix and metadata.
 - **Files to Create/Modify**:
-  - `[NEW]` [src/Service/FileVersionService.php](file:///home/yboutaleb/Documents/kanboard-file-attachment-interaction/src/Service/FileVersionService.php)
-  - `[NEW]` [tests/Unit/FileVersionServiceTest.php](file:///home/yboutaleb/Documents/kanboard-file-attachment-interaction/tests/Unit/FileVersionServiceTest.php)
-- **Tests Required**: Unit tests for version filename generation (`file_v2.txt`), content update logic, and path sanitization.
+  - `[NEW]` [src/Handler/ExcelPreviewHandler.php](file:///home/yboutaleb/Documents/kanboard-file-attachment-interaction/src/Handler/ExcelPreviewHandler.php)
+  - `[NEW]` [tests/Unit/ExcelPreviewHandlerTest.php](file:///home/yboutaleb/Documents/kanboard-file-attachment-interaction/tests/Unit/ExcelPreviewHandlerTest.php)
+- **Tests Required**: Unit tests for extension matching, MIME type checking, and spreadsheet metadata generation.
 
 ---
 
-### Task 27: Live Editor Controller & Routes (`FileEditController`)
-- **Goal**: Create `FileEditController` handling `edit()` (renders modal) and `update()` (POST action validating payload, checking write ACL, and persisting changes).
+### Task 32: Excel Validation & Registry Expansion
+- **Goal**: Update `FileValidationService` (add `xlsx` and `xls` extensions with 5 MB cap), register `ExcelPreviewHandler` in `FileInteractionManager`, `FilePreviewController`, and `Template/file/dropdown.php`.
 - **Files to Create/Modify**:
-  - `[NEW]` [src/Controller/FileEditController.php](file:///home/yboutaleb/Documents/kanboard-file-attachment-interaction/src/Controller/FileEditController.php)
-  - `[MODIFY]` [Plugin.php](file:///home/yboutaleb/Documents/kanboard-file-attachment-interaction/Plugin.php) (routes registration)
-  - `[NEW]` [tests/Unit/FileEditControllerTest.php](file:///home/yboutaleb/Documents/kanboard-file-attachment-interaction/tests/Unit/FileEditControllerTest.php)
-- **Tests Required**: Unit tests for `edit` modal response, `update` POST handling, validation failures, and 403 ACL rejection.
-
----
-
-### Task 28: Interactive Editor Modal View & Dropdown Entry Point
-- **Goal**: Create `Template/file/edit.php` editor modal template view and add "Edit File" link to `Template/file/dropdown.php`.
-- **Files to Create/Modify**:
-  - `[NEW]` [Template/file/edit.php](file:///home/yboutaleb/Documents/kanboard-file-attachment-interaction/Template/file/edit.php)
+  - `[MODIFY]` [src/Service/FileValidationService.php](file:///home/yboutaleb/Documents/kanboard-file-attachment-interaction/src/Service/FileValidationService.php)
+  - `[MODIFY]` [src/Controller/FilePreviewController.php](file:///home/yboutaleb/Documents/kanboard-file-attachment-interaction/src/Controller/FilePreviewController.php)
   - `[MODIFY]` [Template/file/dropdown.php](file:///home/yboutaleb/Documents/kanboard-file-attachment-interaction/Template/file/dropdown.php)
-  - `[MODIFY]` [tests/Integration/PluginTest.php](file:///home/yboutaleb/Documents/kanboard-file-attachment-interaction/tests/Integration/PluginTest.php)
-- **Tests Required**: Integration tests verifying dropdown edit link rendering and editor template dispatching.
+- **Tests Required**: Unit & integration tests verifying Excel extension validation and handler resolution.
 
 ---
 
-### Task 29: Verification, Packaging & Release v0.5.0
-- **Goal**: Run test suite, verify PHPStan Level 8 clean, update `CLAUDE.md`, `walkthrough.md`, `CHANGELOG.md`, bump version to `0.5.0`.
+### Task 33: Multi-Sheet Tabbed Excel Modal Template View
+- **Goal**: Create `Template/file/excel_preview.php` modal template view with sheet navigation tabs, column headers (`A`, `B`, `C`), row indices, and cell entity escaping.
+- **Files to Create/Modify**:
+  - `[NEW]` [Template/file/excel_preview.php](file:///home/yboutaleb/Documents/kanboard-file-attachment-interaction/Template/file/excel_preview.php)
+  - `[MODIFY]` [src/Controller/FilePreviewController.php](file:///home/yboutaleb/Documents/kanboard-file-attachment-interaction/src/Controller/FilePreviewController.php)
+- **Tests Required**: Integration tests verifying Excel template dispatching and sheet tab rendering.
+
+---
+
+### Task 34: Verification, Packaging & Release v0.6.0
+- **Goal**: Run test suite, verify PHPStan Level 8 clean, update `CLAUDE.md`, `walkthrough.md`, `CHANGELOG.md`, bump version to `0.6.0`.
 - **Files to Create/Modify**:
   - `[MODIFY]` [CLAUDE.md](file:///home/yboutaleb/Documents/kanboard-file-attachment-interaction/CLAUDE.md)
   - `[MODIFY]` [CHANGELOG.md](file:///home/yboutaleb/Documents/kanboard-file-attachment-interaction/CHANGELOG.md)
@@ -72,6 +71,6 @@ bash scripts/agent-verify.sh
 ```
 
 ### Manual Verification
-- Test editing `.txt`, `.json`, and `.md` file attachments in Kanboard UI (`http://localhost:8085`).
-- Verify invalid JSON syntax triggers warning banner without saving.
-- Verify saving updates attachment content cleanly.
+- Test previewing `.xlsx` files in Kanboard UI (`http://localhost:8085`).
+- Verify multi-sheet tabs allow switching between worksheets.
+- Verify cell values are safely rendered with HTML entity escaping.

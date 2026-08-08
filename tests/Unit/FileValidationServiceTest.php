@@ -186,7 +186,7 @@ class FileValidationServiceTest extends TestCase
     {
         // Binary document formats are strictly typed: text/plain is NOT a valid
         // MIME type for them and is asserted to be rejected separately below.
-        $binaryExtensions = ['pdf'];
+        $binaryExtensions = ['pdf', 'xlsx', 'xls'];
 
         foreach (FileValidationService::ALLOWED_EXTENSIONS as $extension) {
             if (in_array($extension, $binaryExtensions, true)) {
@@ -205,6 +205,24 @@ class FileValidationServiceTest extends TestCase
         $this->assertSame('pdf', $this->service->validateExtension('invoice.pdf'));
         $this->assertSame('pdf', $this->service->validateExtension('SPECIFICATION.PDF'));
         $this->assertSame('pdf', $this->service->validateExtension(' Report.PdF '));
+    }
+
+    public function testValidateExtensionAcceptsExcel(): void
+    {
+        $this->assertSame('xlsx', $this->service->validateExtension('data.xlsx'));
+        $this->assertSame('xls', $this->service->validateExtension('legacy.xls'));
+    }
+
+    public function testValidateFileSizeAcceptsUpTo5MbForExcel(): void
+    {
+        // 5 MB = 5,242,880 bytes
+        $fiveMb = FileValidationService::EXCEL_MAX_SIZE_BYTES;
+
+        $this->service->validateFileSize($fiveMb, 'xlsx');
+        $this->service->validateFileSize($fiveMb, 'xls');
+
+        $this->expectException(InvalidFileException::class);
+        $this->service->validateFileSize($fiveMb + 1, 'xlsx');
     }
 
     public function testValidateExtensionSanitizesTraversalOnPdfPaths(): void

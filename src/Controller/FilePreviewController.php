@@ -16,6 +16,7 @@ use Kanboard\Plugin\FileInteractionCore\Exception\AccessDeniedException;
 use Kanboard\Plugin\FileInteractionCore\Exception\InvalidFileException;
 use Kanboard\Plugin\FileInteractionCore\Handler\CodePreviewHandler;
 use Kanboard\Plugin\FileInteractionCore\Handler\CsvPreviewHandler;
+use Kanboard\Plugin\FileInteractionCore\Handler\ExcelPreviewHandler;
 use Kanboard\Plugin\FileInteractionCore\Handler\JsonPreviewHandler;
 use Kanboard\Plugin\FileInteractionCore\Handler\MarkdownPreviewHandler;
 use Kanboard\Plugin\FileInteractionCore\Handler\PdfPreviewHandler;
@@ -52,14 +53,18 @@ class FilePreviewController extends BaseController
         if ($interactionManager === null) {
             $interactionManager = new FileInteractionManager();
             // Registration order is significant — first match wins:
-            //   1. Pdf claims the only binary format and must precede every text
-            //      handler so a .pdf never falls through to an escaped-text view.
+            //   1. Pdf and Excel claim the binary formats and must precede every
+            //      text handler so they never fall through to an escaped-text
+            //      view. ExcelPreviewHandler::supports() explicitly declines
+            //      csv/tsv/txt, so it cannot steal a CSV labelled as an Excel
+            //      MIME type despite being registered ahead of Csv.
             //   2. Csv/Markdown/Json claim narrow, unambiguous formats.
             //   3. Code claims the remaining source & config extensions. It is
             //      registered AFTER Json so .json keeps its pretty-printed view.
             //   4. Text is the catch-all: it accepts ANY text/* MIME type, so it
             //      must always be registered last.
             $interactionManager->registerHandler(new PdfPreviewHandler());
+            $interactionManager->registerHandler(new ExcelPreviewHandler());
             $interactionManager->registerHandler(new CsvPreviewHandler());
             $interactionManager->registerHandler(new MarkdownPreviewHandler());
             $interactionManager->registerHandler(new JsonPreviewHandler());
@@ -214,6 +219,8 @@ class FilePreviewController extends BaseController
                 'tsv' => 'text/tab-separated-values',
                 'md', 'markdown' => 'text/markdown',
                 'pdf' => 'application/pdf',
+                'xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'xls' => 'application/vnd.ms-excel',
                 default => 'text/plain',
             };
 
@@ -270,6 +277,7 @@ class FilePreviewController extends BaseController
     {
         return match ($handlerName) {
             'CsvPreviewHandler' => 'FileInteractionCore:file/csv_preview',
+            'ExcelPreviewHandler' => 'FileInteractionCore:file/excel_preview',
             'PdfPreviewHandler' => 'FileInteractionCore:file/pdf_preview',
             'MarkdownPreviewHandler', 'CodePreviewHandler' => 'FileInteractionCore:file/markdown_preview',
             default => 'FileInteractionCore:file/preview',

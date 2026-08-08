@@ -325,4 +325,59 @@ class FilePreviewControllerRuntimeTest extends TestCase
         $this->assertSame('PdfPreviewHandler', $template->renderedVars['handler']);
         $this->assertTrue($template->renderedVars['metadata']['isBinary']);
     }
+
+    /**
+     * Spec 006 AC-1: .xlsx attachments must reach the multi-sheet grid view.
+     *
+     * Resolution is extension-driven, so this holds even in the test runtime
+     * where ext-zip is absent and the parser yields no sheets.
+     */
+    public function testRendersExcelPreviewTemplateForXlsxFile(): void
+    {
+        $template = new FakeTemplate();
+        $response = new FakeResponse();
+
+        $container = $this->buildContainer(
+            ['file_id' => 31, 'task_id' => 1, 'project_id' => 1],
+            ['name' => 'budget.xlsx', 'path' => 'tasks/1/budget.xlsx', 'task_id' => 1, 'project_id' => 1],
+            'PK binary workbook payload',
+            $template,
+            $response
+        );
+
+        $controller = new FilePreviewController($container, new PermissionService(new MockPermissionChecker(true)));
+        $controller->show();
+
+        $this->assertSame('FileInteractionCore:file/excel_preview', $template->renderedTemplate);
+        $this->assertSame(200, $response->statusCode);
+        $this->assertSame('ExcelPreviewHandler', $template->renderedVars['handler']);
+        $this->assertArrayHasKey('sheetNames', $template->renderedVars['metadata']);
+        $this->assertArrayHasKey('activeSheet', $template->renderedVars['metadata']);
+    }
+
+    /**
+     * Legacy .xls resolves to the same view, flagged so the template shows the
+     * download notice instead of an empty grid.
+     */
+    public function testRendersExcelPreviewTemplateForLegacyXlsFile(): void
+    {
+        $template = new FakeTemplate();
+        $response = new FakeResponse();
+
+        $container = $this->buildContainer(
+            ['file_id' => 32, 'task_id' => 1, 'project_id' => 1],
+            ['name' => 'legacy.xls', 'path' => 'tasks/1/legacy.xls', 'task_id' => 1, 'project_id' => 1],
+            "\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1 legacy biff payload",
+            $template,
+            $response
+        );
+
+        $controller = new FilePreviewController($container, new PermissionService(new MockPermissionChecker(true)));
+        $controller->show();
+
+        $this->assertSame('FileInteractionCore:file/excel_preview', $template->renderedTemplate);
+        $this->assertSame('ExcelPreviewHandler', $template->renderedVars['handler']);
+        $this->assertTrue($template->renderedVars['metadata']['isLegacyFormat']);
+        $this->assertFalse($template->renderedVars['metadata']['parsed']);
+    }
 }

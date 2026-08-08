@@ -15,9 +15,11 @@ class FileValidationService
 
     public const PDF_MAX_SIZE_BYTES = 10485760; // 10 MB (spec 004)
 
+    public const EXCEL_MAX_SIZE_BYTES = 5242880; // 5 MB (spec 006)
+
     /**
      * Allowed file extensions (Milestone 1 text/JSON, Milestone 2 tabular, Milestone 3 markdown/code,
-     * Milestone 4 PDF).
+     * Milestone 4 PDF, Milestone 6 Excel).
      *
      * NOTE: script-typed source extensions (php, js, sh, bash, py) are previewable
      * but NEVER executed: CodePreviewHandler entity-escapes the whole payload with
@@ -31,7 +33,7 @@ class FileValidationService
         'txt', 'json', 'md', 'env', 'ini', 'conf', 'yaml', 'yml', 'xml', 'log', 'html', 'htm',
         'csv', 'tsv',
         'markdown', 'sh', 'bash', 'py', 'php', 'js', 'css', 'sql',
-        'pdf'
+        'pdf', 'xlsx', 'xls'
     ];
 
     /**
@@ -44,6 +46,8 @@ class FileValidationService
      */
     public const EXTENSION_MAX_SIZE_BYTES = [
         'pdf' => self::PDF_MAX_SIZE_BYTES,
+        'xlsx' => self::EXCEL_MAX_SIZE_BYTES,
+        'xls' => self::EXCEL_MAX_SIZE_BYTES,
     ];
 
     /**
@@ -69,17 +73,19 @@ class FileValidationService
         'tsv'  => ['text/tab-separated-values', 'text/tsv', 'text/plain'],
         'markdown' => ['text/markdown', 'text/x-markdown', 'text/plain'],
         // Source files are commonly served as text/plain by object storage backends
-        'sh'   => ['text/plain', 'text/x-sh', 'application/x-sh', 'application/x-shellscript'],
-        'bash' => ['text/plain', 'text/x-sh', 'application/x-sh', 'application/x-shellscript'],
-        'py'   => ['text/plain', 'text/x-python', 'application/x-python-code'],
-        'php'  => ['text/plain', 'text/x-php', 'application/x-httpd-php'],
-        'js'   => ['text/plain', 'text/javascript', 'application/javascript', 'application/x-javascript'],
-        'css'  => ['text/plain', 'text/css'],
-        'sql'  => ['text/plain', 'text/x-sql', 'application/sql'],
+        'sh'   => ['text/plain', 'text/x-sh', 'application/x-sh', 'application/x-shellscript', 'text/x-shellscript'],
+        'bash' => ['text/plain', 'text/x-sh', 'application/x-sh', 'application/x-shellscript', 'text/x-shellscript'],
+        'py'   => ['text/x-python', 'text/x-script.python', 'text/plain'],
+        'php'  => ['text/x-php', 'application/x-httpd-php', 'text/plain'],
+        'js'   => ['application/javascript', 'text/javascript', 'text/plain'],
+        'css'  => ['text/css', 'text/plain'],
+        'sql'  => ['text/x-sql', 'application/sql', 'text/plain'],
         // Binary document format: text/* is intentionally absent, a PDF announcing
         // itself as plain text is a mismatch worth rejecting. Object storage
         // backends fall back to application/octet-stream for unknown binaries.
         'pdf'  => ['application/pdf', 'application/x-pdf', 'application/octet-stream'],
+        'xlsx' => ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/zip', 'application/octet-stream'],
+        'xls'  => ['application/vnd.ms-excel', 'application/msexcel', 'application/x-msexcel', 'application/x-ms-excel', 'application/x-excel', 'application/x-dos_ms_excel', 'application/xls', 'application/x-xls', 'application/octet-stream'],
     ];
 
     private int $maxSizeBytes;

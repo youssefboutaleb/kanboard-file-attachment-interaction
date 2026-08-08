@@ -47,20 +47,27 @@ This document defines the agentic workflow, automated quality gates, git hooks, 
 - [x] **Task 28: Interactive Editor Modal View & Dropdown Entry Point** (`Template/file/edit.php`, `Template/file/dropdown.php` edit link) (Completed)
 - [x] **Task 29: Verification, Packaging & Release v0.5.0** (`CHANGELOG.md`, `Plugin.php` v0.5.0, release packaging) (Completed)
 
+### Milestone 6: Excel Spreadsheet Interactive Preview Engine (100% RELEASED - v0.6.0)
+- [x] **Task 30: Excel Spreadsheet Parsing Service** (`ExcelParserService` for `.xlsx` OpenXML parsing & multi-sheet extraction) (Completed)
+- [x] **Task 31: Excel Preview Handler** (`ExcelPreviewHandler` for `.xlsx` and `.xls`) (Completed)
+- [x] **Task 32: Excel Validation & Registry Expansion** (`FileValidationService` 5MB cap, 7-handler registry, dropdown whitelist) (Completed)
+- [x] **Task 33: Multi-Sheet Tabbed Excel Modal Template View** (`Template/file/excel_preview.php`, sheet navigation tabs, A/B/C column headers, cell entity escaping) (Completed)
+- [x] **Task 34: Verification, Packaging & Release v0.6.0** (`CHANGELOG.md`, `Plugin.php` v0.6.0, release packaging) (Completed)
+
 ---
 
 ## 🛠️ Essential Commands & Agentic Scripts
 
 ```bash
-# Automated Agent Verification Pipeline (PHP Syntax, Composer, PHPStan Level 8, 240 Tests Passing)
+# Automated Agent Verification Pipeline (PHP Syntax, Composer, PHPStan Level 8, 279 Tests Passing)
 bash scripts/agent-verify.sh
 # or via composer:
 composer agent-verify
 
-# Test Execution via Docker (PHP 8.1 container - 240 Tests Passing)
+# Test Execution via Docker (PHP 8.1 container - 279 Tests Passing)
 docker run --rm -v $(pwd):/app -w /app php:8.1-cli vendor/bin/phpunit
 
-# Package Plugin Release v0.5.0
+# Package Plugin Release v0.6.0
 bash scripts/package-plugin.sh # or composer package
 
 # Local Live Kanboard Test Instance
@@ -108,3 +115,6 @@ Every task executed by Claude or AI agents follows a 6-phase loop:
 8. **PDF Viewer Dispatch**: `FilePreviewController` dispatches `FileInteractionCore:file/pdf_preview` for PDF attachments, rendering a sandboxed `<object>` container with fallback download links and 10MB file limit bounds.
 9. **Pre-Save Syntax Checking**: `FileEditValidationService` uses `json_decode()` line scanning to report exact line offset on JSON syntax errors before committing attachment changes.
 10. **Live Editor Route Dispatch**: `FileEditController` dispatches `edit` modal rendering and `update` POST actions with pre-save syntax validation and `FileVersionService` revision handling.
+11. **OpenXML Spreadsheet Parsing**: `ExcelParserService` extracts `.xlsx` shared strings (`xl/sharedStrings.xml`) and multi-sheet XML structures cleanly with fallback bounds capping.
+12. **Excel Handler Dispatch & Binary Classification**: `ExcelPreviewHandler` dispatches `xlsx` and `xls` extensions with a 5 MB cap; binary formats (`pdf`, `xlsx`, `xls`) are classified separately from universal `text/plain` fallbacks in `FileValidationServiceTest`.
+13. **Multi-Sheet Spreadsheet Modal View**: `Template/file/excel_preview.php` provides interactive tab switching between workbook sheets, displaying A/B/C column headers, row indices, and cell entity escaping.

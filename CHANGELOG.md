@@ -5,6 +5,25 @@ All notable changes to `kanboard-file-interaction-core` will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-08-08
+
+### Added
+- **Excel Spreadsheet Interactive Preview Engine**:
+  - `ExcelParserService`: Memory-safe `.xlsx` OpenXML parser extracting sheet names (`xl/workbook.xml`), shared string lookup tables (`xl/sharedStrings.xml`), and row/column data matrices capped at 100 rows x 50 columns.
+  - `ExcelPreviewHandler`: Handler supporting `.xlsx` and `.xls` attachments, returning multi-sheet workbook structure and metadata.
+  - `Template/file/excel_preview.php`: Multi-sheet tabbed spreadsheet modal view with worksheet navigation tabs (`Sheet1`, `Sheet2`), A/B/C column headers, row index gutter, cell HTML entity escaping, and legacy format / truncation banners.
+  - Added `'xlsx'` and `'xls'` extensions to attachment dropdown whitelist (`Template/file/dropdown.php`) with 5 MB file size caps in `FileValidationService`.
+- **Expanded Test Suite**:
+  - 39 new unit & integration tests covering OpenXML spreadsheet parsing, multi-sheet tab rendering, legacy `.xls` notification, XSS cell escaping, and 5 MB size cap enforcement (total 279 tests, 925 assertions).
+
+### Fixed
+- Registered `ExcelPreviewHandler` in `FilePreviewController` handler registry (7-handler registry order).
+
+### Changed
+- Updated `Plugin.php` version to `0.6.0`.
+
+---
+
 ## [0.5.0] - 2026-08-08
 
 ### Added

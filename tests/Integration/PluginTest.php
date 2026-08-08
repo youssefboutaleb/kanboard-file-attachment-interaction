@@ -63,7 +63,7 @@ class PluginTest extends TestCase
     public function testPluginMetadata(): void
     {
         $this->assertSame('FileInteractionCore', $this->plugin->getPluginName());
-        $this->assertSame('0.5.0', $this->plugin->getPluginVersion());
+        $this->assertSame('0.6.0', $this->plugin->getPluginVersion());
         $this->assertSame('Security & Engineering Team', $this->plugin->getPluginAuthor());
         $this->assertSame('https://github.com/youssefboutaleb/kanboard-file-attachment-interaction', $this->plugin->getPluginHomepage());
         $this->assertNotEmpty($this->plugin->getPluginDescription());
@@ -618,6 +618,240 @@ class PluginTest extends TestCase
         $this->assertStringContainsString('id="fic-line-count">0<', $output);
         $this->assertStringContainsString('id="fic-char-count">0<', $output);
         $this->assertStringContainsString('<textarea', $output);
+    }
+
+    // ---------------------------------------------------------------------
+    // Task 33 — multi-sheet Excel modal template
+    // ---------------------------------------------------------------------
+
+    /**
+     * Build handler-shaped metadata. Cells and sheet names arrive from
+     * ExcelPreviewHandler ALREADY entity-escaped.
+     *
+     * @param array<string, list<list<string>>> $sheets
+     * @param array<string, mixed> $overrides
+     * @return array<string, mixed>
+     */
+    private function excelVars(array $sheets, array $overrides = []): array
+    {
+        $sheetMeta = [];
+        foreach ($sheets as $name => $rows) {
+            $columns = 0;
+            foreach ($rows as $row) {
+                $columns = max($columns, count($row));
+            }
+
+            $sheetMeta[$name] = [
+                'rows' => $rows,
+                'rowCount' => count($rows),
+                'columnCount' => $columns,
+                'truncated' => false,
+            ];
+        }
+
+        $names = array_keys($sheets);
+
+        return array_merge([
+            'filename' => 'budget.xlsx',
+            'handler' => 'ExcelPreviewHandler',
+            'extension' => 'xlsx',
+            'metadata' => array_merge([
+                'handler' => 'ExcelPreviewHandler',
+                'sheets' => $sheetMeta,
+                'sheetCount' => count($names),
+                'sheetNames' => $names,
+                'activeSheet' => $names === [] ? '' : $names[0],
+                'truncated' => false,
+                'isLegacyFormat' => false,
+                'parsed' => $names !== [],
+            ], $overrides),
+        ]);
+    }
+
+    public function testExcelTemplateRendersSheetTabsForMultiSheetWorkbook(): void
+    {
+        $output = $this->renderTemplate('excel_preview', $this->excelVars([
+            'Summary' => [['Region', 'Total']],
+            'Detail' => [['Id']],
+            'Notes' => [['Memo']],
+        ]));
+
+        $this->assertStringContainsString('fic-sheet-tabs', $output);
+        foreach (['Summary', 'Detail', 'Notes'] as $sheetName) {
+            $this->assertStringContainsString($sheetName, $output);
+        }
+        $this->assertSame(3, substr_count($output, 'data-sheet-index='));
+        $this->assertSame(1, substr_count($output, 'aria-selected="true"'));
+        $this->assertStringContainsString('3 Sheets', $output);
+    }
+
+    /**
+     * Spec 006 AC-2: only the active worksheet is visible; the rest are present
+     * in the DOM but hidden, so switching needs no server round-trip.
+     */
+    public function testExcelTemplateShowsOnlyTheActiveSheetPanel(): void
+    {
+        $output = $this->renderTemplate('excel_preview', $this->excelVars([
+            'Summary' => [['visible-cell']],
+            'Detail' => [['hidden-cell']],
+        ]));
+
+        $matched = preg_match_all('/<div class="fic-sheet-panel" id="fic-sheet-(\d+)"[^>]*style="([^"]*)"/', $output, $matches);
+        $this->assertSame(2, $matched);
+        $this->assertSame('', $matches[2][0], 'The active panel must not be hidden.');
+        $this->assertStringContainsString('display: none', $matches[2][1]);
+    }
+
+    public function testExcelTemplateOmitsTabBarForSingleSheetWorkbook(): void
+    {
+        $output = $this->renderTemplate('excel_preview', $this->excelVars([
+            'OnlySheet' => [['a']],
+        ]));
+
+        $this->assertStringNotContainsString('fic-sheet-tabs', $output);
+        $this->assertStringNotContainsString('data-sheet-index=', $output);
+        // The active sheet badge is still shown in the header
+        $this->assertStringContainsString('fic-active-sheet-badge', $output);
+        $this->assertStringContainsString('OnlySheet', $output);
+    }
+
+    public function testExcelTemplateRendersSpreadsheetColumnLabels(): void
+    {
+        $wideRow = array_fill(0, 28, 'x');
+
+        $output = $this->renderTemplate('excel_preview', $this->excelVars([
+            'Wide' => [$wideRow],
+        ]));
+
+        foreach (['>A<', '>B<', '>Z<', '>AA<', '>AB<'] as $label) {
+            $this->assertStringContainsString(
+                $label,
+                preg_replace('/\s+/', '', $output) ?? '',
+                "Missing column label {$label}"
+            );
+        }
+    }
+
+    public function testExcelTemplateRendersRowIndexColumn(): void
+    {
+        $output = $this->renderTemplate('excel_preview', $this->excelVars([
+            'Sheet1' => [['a'], ['b'], ['c']],
+        ]));
+
+        $compact = preg_replace('/\s+/', '', $output) ?? '';
+        foreach (['>1<', '>2<', '>3<'] as $rowNumber) {
+            $this->assertStringContainsString($rowNumber, $compact);
+        }
+    }
+
+    /**
+     * Spec 006 AC-3. Cells reach this view ALREADY escaped by the handler, so
+     * the view must emit them verbatim: escaping again would surface literal
+     * "&amp;lt;script&amp;gt;" text, and not escaping at the handler would
+     * execute the payload.
+     */
+    public function testExcelTemplateEmitsPreEscapedCellsExactlyOnce(): void
+    {
+        $output = $this->renderTemplate('excel_preview', $this->excelVars([
+            'Sheet1' => [['&lt;script&gt;alert(1)&lt;/script&gt;']],
+        ]));
+
+        $this->assertStringContainsString('&lt;script&gt;alert(1)&lt;/script&gt;', $output);
+        $this->assertStringNotContainsString('<script>alert(1)</script>', $output);
+        $this->assertStringNotContainsString('&amp;lt;', $output);
+    }
+
+    public function testExcelTemplateEmitsPreEscapedSheetNamesExactlyOnce(): void
+    {
+        $output = $this->renderTemplate('excel_preview', $this->excelVars([
+            '&lt;img src=x&gt;' => [['a']],
+            'Safe' => [['b']],
+        ]));
+
+        $this->assertStringContainsString('&lt;img src=x&gt;', $output);
+        $this->assertStringNotContainsString('<img src=x>', $output);
+        $this->assertStringNotContainsString('&amp;lt;img', $output);
+    }
+
+    public function testExcelTemplateEscapesUntrustedFilename(): void
+    {
+        $output = $this->renderTemplate('excel_preview', array_merge(
+            $this->excelVars(['Sheet1' => [['a']]]),
+            ['filename' => '<img src=x onerror=alert(1)>.xlsx']
+        ));
+
+        $this->assertStringNotContainsString('<img src=x', $output);
+        $this->assertStringContainsString('&lt;img src=x', $output);
+    }
+
+    /**
+     * A legacy .xls cannot be parsed by the OpenXML reader, so the view must
+     * say so rather than render a grid that looks like an empty workbook.
+     */
+    public function testExcelTemplateShowsLegacyNoticeAndSuppressesGrid(): void
+    {
+        $output = $this->renderTemplate('excel_preview', $this->excelVars([], [
+            'isLegacyFormat' => true,
+            'parsed' => false,
+        ]));
+
+        $this->assertStringContainsString('Legacy .xls workbooks', $output);
+        $this->assertStringContainsString('Download the file', $output);
+        $this->assertStringNotContainsString('<table', $output);
+        $this->assertStringNotContainsString('fic-sheet-tabs', $output);
+    }
+
+    public function testExcelTemplateShowsUnreadableWorkbookNotice(): void
+    {
+        $output = $this->renderTemplate('excel_preview', $this->excelVars([], [
+            'parsed' => false,
+        ]));
+
+        $this->assertStringContainsString('could not be read', $output);
+        $this->assertStringNotContainsString('Legacy .xls workbooks', $output);
+        $this->assertStringNotContainsString('<table', $output);
+    }
+
+    public function testExcelTemplateShowsTruncationBanner(): void
+    {
+        $truncated = $this->renderTemplate('excel_preview', $this->excelVars([
+            'Sheet1' => [['a']],
+        ], ['truncated' => true]));
+
+        $clean = $this->renderTemplate('excel_preview', $this->excelVars([
+            'Sheet1' => [['a']],
+        ]));
+
+        $this->assertStringContainsString('Preview truncated', $truncated);
+        $this->assertStringNotContainsString('Preview truncated', $clean);
+        $this->assertStringNotContainsString('alert-warning', $clean);
+    }
+
+    public function testExcelTemplateShowsEmptySheetNotice(): void
+    {
+        $output = $this->renderTemplate('excel_preview', $this->excelVars([
+            'Blank' => [],
+        ]));
+
+        $this->assertStringContainsString('This sheet is empty.', $output);
+        $this->assertStringNotContainsString('<table', $output);
+    }
+
+    /**
+     * Ragged rows must still line up under the header strip.
+     */
+    public function testExcelTemplatePadsShortRowsToTheWidestRow(): void
+    {
+        $output = $this->renderTemplate('excel_preview', $this->excelVars([
+            'Ragged' => [['a', 'b', 'c'], ['only-one']],
+        ]));
+
+        $matched = preg_match_all('/<tr[^>]*>(.*?)<\/tr>/s', $output, $rows);
+        $this->assertSame(3, $matched, 'Expected a header row plus two body rows.');
+
+        // Each body row: 1 index cell + 3 data cells
+        $this->assertSame(4, substr_count($rows[1][1], '<td'));
+        $this->assertSame(4, substr_count($rows[1][2], '<td'));
     }
 
     /**
