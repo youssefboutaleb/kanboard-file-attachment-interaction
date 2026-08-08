@@ -34,6 +34,11 @@ class PermissionService
         return $this->checker->canReadFile($projectId, $taskId, $fileId, $userId);
     }
 
+    public function canUserWriteFile(int $projectId, int $taskId, int $fileId, ?int $userId = null): bool
+    {
+        return $this->canUserReadFile($projectId, $taskId, $fileId, $userId);
+    }
+
     /**
      * Assert that user can read task attachment, throwing AccessDeniedException if forbidden.
      *

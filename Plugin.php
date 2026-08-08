@@ -32,6 +32,18 @@ class Plugin extends Base
             'show',
             'FileInteractionCore'
         );
+        $this->route->addRoute(
+            '/b/:project_id/task/:task_id/file/:file_id/edit',
+            'FileEditController',
+            'edit',
+            'FileInteractionCore'
+        );
+        $this->route->addRoute(
+            '/b/:project_id/task/:task_id/file/:file_id/update',
+            'FileEditController',
+            'update',
+            'FileInteractionCore'
+        );
 
         // 2. Attach UI Action Hooks to Task File Attachment Dropdowns
         $this->template->hook->attach('template:task-file:documents:dropdown', 'FileInteractionCore:file/dropdown');
@@ -57,7 +69,7 @@ class Plugin extends Base
 
     public function getPluginVersion()
     {
-        return '0.4.0';
+        return '0.5.0';
     }
 
     public function getPluginHomepage()

@@ -169,6 +169,12 @@ class FileValidationService
         return $extension;
     }
 
+    public function isAllowedExtension(string $extension): bool
+    {
+        $normalizedExt = strtolower(ltrim(trim($extension), '.'));
+        return in_array($normalizedExt, $this->allowedExtensions, true);
+    }
+
     /**
      * Validate file size against the configured maximum boundary (and > 0 bytes).
      *

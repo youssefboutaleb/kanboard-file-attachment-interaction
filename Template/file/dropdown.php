@@ -6,6 +6,18 @@ $allowedExtensions = [
     'markdown', 'sh', 'bash', 'py', 'php', 'js', 'css', 'sql',
     'pdf',
 ];
+
+/**
+ * Formats offered for in-app editing — mirrors
+ * FileEditValidationService::EDITABLE_EXTENSIONS and is deliberately narrower
+ * than $allowedExtensions: binary (pdf), tabular (csv/tsv) and active-content
+ * (html) formats must never open in a plain-text editor.
+ */
+$editableExtensions = [
+    'txt', 'json', 'md', 'markdown',
+    'yml', 'yaml',
+    'sh', 'py', 'js', 'css', 'sql',
+];
 $extension = strtolower(pathinfo($file['name'] ?? '', PATHINFO_EXTENSION));
 
 // The project-overview hook passes `project` + `file` only; the task hooks pass `task` + `file`.
@@ -24,9 +36,30 @@ if ($isProjectFile) {
     $previewParams['source'] = 'project';
 }
 
+/**
+ * Write gate for the editor entry point.
+ *
+ * `TaskFileController::remove` is the core ACL entry meaning "may mutate this
+ * project's attachments" (the same check core uses for the Remove item in
+ * app/Template/task_file/files.php). Our plugin controller is not registered in
+ * Kanboard's access map, so it cannot be queried here.
+ *
+ * Project-overview attachments are excluded: FileEditController resolves files
+ * through taskFileModel only, so there is no editable target without a task.
+ */
+$canEditAttachment = !$isProjectFile
+    && (int) $previewParams['project_id'] > 0
+    && $this->user->hasProjectAccess('TaskFileController', 'remove', (int) $previewParams['project_id']);
+
 if (in_array($extension, $allowedExtensions, true)):
 ?>
     <li>
         <?= $this->modal->medium('eye', t('Safe Preview'), 'FilePreviewController', 'show', $previewParams) ?>
+    </li>
+<?php endif ?>
+
+<?php if ($canEditAttachment && in_array($extension, $editableExtensions, true)): ?>
+    <li>
+        <?= $this->modal->medium('pencil', t('Edit Attachment'), 'FileEditController', 'edit', $previewParams) ?>
     </li>
 <?php endif ?>

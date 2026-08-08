@@ -5,6 +5,23 @@ All notable changes to `kanboard-file-interaction-core` will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-08-08
+
+### Added
+- **Safe In-App Text & JSON Live Editor**:
+  - `FileEditController`: Live editor controller handling `edit()` modal rendering and `update()` POST save actions.
+  - `FileEditValidationService`: Pre-save validation engine checking payload size bounds (500 KB limit) and JSON syntax error line detection (`json_decode()` error reporting).
+  - `FileVersionService`: Attachment revision engine supporting overwrite updates and versioned revision file creation (`filename_v2.ext`).
+  - `Template/file/edit.php`: Interactive editor modal view with syntax status indicators, line-number gutter, live character counters, and save mode selection (overwrite vs revision).
+  - "Edit File" action link added to file attachment dropdown (`Template/file/dropdown.php`) for text/JSON/Markdown attachments when user has write access.
+- **Expanded Test Suite**:
+  - 54 new unit & integration tests covering pre-save validation, JSON syntax error estimation, version filename generation, edit modal rendering, and write ACL enforcement (total 240 tests, 789 assertions).
+
+### Changed
+- Updated `Plugin.php` version to `0.5.0` and registered `/b/:project_id/task/:task_id/file/:file_id/edit` and `update` routes.
+
+---
+
 ## [0.4.0] - 2026-08-08
 
 ### Added

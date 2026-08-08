@@ -30,6 +30,7 @@ require_once __DIR__ . '/../../Plugin.php';
 require_once __DIR__ . '/../stubs/TemplateFunctions.php';
 
 use Kanboard\Plugin\FileInteractionCore\Plugin;
+use Kanboard\Plugin\FileInteractionCore\Service\FileEditValidationService;
 use Kanboard\Plugin\FileInteractionCore\Service\FileValidationService;
 
 class PluginTest extends TestCase
@@ -62,7 +63,7 @@ class PluginTest extends TestCase
     public function testPluginMetadata(): void
     {
         $this->assertSame('FileInteractionCore', $this->plugin->getPluginName());
-        $this->assertSame('0.4.0', $this->plugin->getPluginVersion());
+        $this->assertSame('0.5.0', $this->plugin->getPluginVersion());
         $this->assertSame('Security & Engineering Team', $this->plugin->getPluginAuthor());
         $this->assertSame('https://github.com/youssefboutaleb/kanboard-file-attachment-interaction', $this->plugin->getPluginHomepage());
         $this->assertNotEmpty($this->plugin->getPluginDescription());
@@ -358,6 +359,267 @@ class PluginTest extends TestCase
         $this->assertStringContainsString('file_id=9', $output);
     }
 
+    // ---------------------------------------------------------------------
+    // Task 28 — editor dropdown entry point
+    // ---------------------------------------------------------------------
+
+    /**
+     * Build the variables the core task-file hook passes to our dropdown.
+     *
+     * @return array<string, mixed>
+     */
+    private function taskFileVars(string $filename): array
+    {
+        return [
+            'task' => ['id' => 7, 'project_id' => 3],
+            'file' => ['id' => 42, 'name' => $filename, 'task_id' => 7],
+        ];
+    }
+
+    public function testDropdownShowsEditLinkForEditableAttachmentWithWriteAccess(): void
+    {
+        $output = $this->renderTemplate('dropdown', $this->taskFileVars('notes.md'));
+
+        $this->assertStringContainsString('Edit Attachment', $output);
+        $this->assertStringContainsString('FileEditController::edit', $output);
+        $this->assertStringContainsString('file_id=42', $output);
+        // The preview entry must survive alongside the new one
+        $this->assertStringContainsString('Safe Preview', $output);
+    }
+
+    /**
+     * Spec 005 AC-4: no write access, no editor entry point.
+     */
+    public function testDropdownHidesEditLinkWithoutWriteAccess(): void
+    {
+        $renderer = new FakeTemplateHelper();
+        $renderer->user->setProjectAccess(false);
+
+        $output = $renderer->render(
+            __DIR__ . '/../../Template/file/dropdown.php',
+            $this->taskFileVars('notes.md')
+        );
+
+        $this->assertStringNotContainsString('Edit Attachment', $output);
+        // Read-only preview stays available to users who may only read
+        $this->assertStringContainsString('Safe Preview', $output);
+    }
+
+    /**
+     * Binary, tabular and active-content formats are previewable but must never
+     * open in a plain-text editor.
+     */
+    public function testDropdownHidesEditLinkForNonEditableFormats(): void
+    {
+        foreach (['report.pdf', 'export.csv', 'page.html', 'archive.exe'] as $filename) {
+            $output = $this->renderTemplate('dropdown', $this->taskFileVars($filename));
+
+            $this->assertStringNotContainsString(
+                'Edit Attachment',
+                $output,
+                "Editor entry point must not be offered for {$filename}"
+            );
+        }
+
+        // ...while a previewable non-editable format keeps its preview entry
+        $pdf = $this->renderTemplate('dropdown', $this->taskFileVars('report.pdf'));
+        $this->assertStringContainsString('Safe Preview', $pdf);
+    }
+
+    /**
+     * FileEditController resolves attachments through taskFileModel only, so a
+     * project-overview file has no editable target.
+     */
+    public function testDropdownHidesEditLinkForProjectOverviewAttachments(): void
+    {
+        $output = $this->renderTemplate('dropdown', [
+            'project' => ['id' => 3],
+            'file' => ['id' => 42, 'name' => 'notes.md', 'project_id' => 3],
+        ]);
+
+        $this->assertStringNotContainsString('Edit Attachment', $output);
+        $this->assertStringContainsString('Safe Preview', $output);
+    }
+
+    public function testDropdownEditableListMatchesEditValidationService(): void
+    {
+        $template = file_get_contents(__DIR__ . '/../../Template/file/dropdown.php');
+        $this->assertNotFalse($template);
+
+        $matched = preg_match('/\$editableExtensions\s*=\s*\[(.*?)\];/s', $template, $matches);
+        $this->assertSame(1, $matched, 'dropdown.php must declare an $editableExtensions array.');
+
+        foreach (FileEditValidationService::EDITABLE_EXTENSIONS as $extension) {
+            $this->assertStringContainsString(
+                "'" . $extension . "'",
+                $matches[1],
+                "dropdown.php is missing the editable extension .{$extension}"
+            );
+        }
+    }
+
+    /**
+     * Anything editable must also be previewable; the reverse must NOT hold.
+     */
+    public function testEditableExtensionsAreStrictSubsetOfAllowedExtensions(): void
+    {
+        foreach (FileEditValidationService::EDITABLE_EXTENSIONS as $extension) {
+            $this->assertContains(
+                $extension,
+                FileValidationService::ALLOWED_EXTENSIONS,
+                "Editable extension .{$extension} is not in the validated whitelist"
+            );
+        }
+
+        foreach (['pdf', 'csv', 'tsv', 'html'] as $extension) {
+            $this->assertNotContains(
+                $extension,
+                FileEditValidationService::EDITABLE_EXTENSIONS,
+                ".{$extension} must not be editable as plain text"
+            );
+        }
+    }
+
+    // ---------------------------------------------------------------------
+    // Task 28 — editor modal template
+    // ---------------------------------------------------------------------
+
+    /**
+     * @param array<string, mixed> $overrides
+     * @return array<string, mixed>
+     */
+    private function editorVars(array $overrides = []): array
+    {
+        return array_merge([
+            'fileId' => 42,
+            'taskId' => 7,
+            'projectId' => 3,
+            'filename' => 'notes.md',
+            'extension' => 'md',
+            'content' => "# Title\nbody line\n",
+        ], $overrides);
+    }
+
+    public function testEditTemplateRendersEditorWithFileMetadata(): void
+    {
+        $output = $this->renderTemplate('edit', $this->editorVars());
+
+        $this->assertStringContainsString('<textarea', $output);
+        $this->assertStringContainsString('name="content"', $output);
+        $this->assertStringContainsString('notes.md', $output);
+        // Format badge and line counter
+        $this->assertStringContainsString('>MD<', preg_replace('/\s+/', '', $output) ?? '');
+        $this->assertStringContainsString('id="fic-line-count">3<', $output);
+    }
+
+    /**
+     * Raw file bytes reach the textarea. An unescaped "</textarea>" in the
+     * payload would break out of the field and inject live markup.
+     */
+    public function testEditTemplateEscapesContentBreakingOutOfTextarea(): void
+    {
+        $output = $this->renderTemplate('edit', $this->editorVars([
+            'content' => '</textarea><script>alert(1)</script>',
+        ]));
+
+        $this->assertStringNotContainsString('<script>alert(1)</script>', $output);
+        $this->assertStringContainsString('&lt;/textarea&gt;', $output);
+        $this->assertStringContainsString('&lt;script&gt;', $output);
+    }
+
+    public function testEditTemplateEscapesMaliciousFilename(): void
+    {
+        $output = $this->renderTemplate('edit', $this->editorVars([
+            'filename' => '"><img src=x onerror=alert(1)>.txt',
+            'extension' => 'txt',
+        ]));
+
+        $this->assertStringNotContainsString('<img src=x', $output);
+        $this->assertStringContainsString('&lt;img', $output);
+    }
+
+    public function testEditTemplatePostsToUpdateActionWithCsrfAndIdentifiers(): void
+    {
+        $output = $this->renderTemplate('edit', $this->editorVars());
+
+        $this->assertStringContainsString('method="post"', $output);
+
+        // Kanboard resolves this to the pretty route (/b/3/task/7/file/42/update)
+        // in production and to a query string under the test URL stub, so assert
+        // on the target rather than on one URL shape.
+        $this->assertMatchesRegularExpression(
+            '/<form[^>]+action="[^"]*update[^"]*"/',
+            $output,
+            'The editor form must post to the update action.'
+        );
+        $this->assertStringContainsString('name="csrf_token"', $output);
+        $this->assertStringContainsString('name="file_id" value="42"', $output);
+        $this->assertStringContainsString('name="task_id" value="7"', $output);
+        $this->assertStringContainsString('name="project_id" value="3"', $output);
+    }
+
+    public function testEditTemplateOffersBothSaveModesWithOverwriteDefault(): void
+    {
+        $output = $this->renderTemplate('edit', $this->editorVars());
+
+        $this->assertStringContainsString('name="mode" value="overwrite" checked', $output);
+        $this->assertStringContainsString('name="mode" value="revision"', $output);
+        $this->assertStringContainsString('Overwrite this file', $output);
+        $this->assertStringContainsString('Save as new revision', $output);
+        // The revision radio must not also be pre-selected
+        $this->assertStringNotContainsString('value="revision" checked', $output);
+    }
+
+    /**
+     * Read the rendered syntax indicator, ignoring the script block that also
+     * carries the label strings for live re-evaluation.
+     */
+    private function syntaxStatusOf(string $output): string
+    {
+        $matched = preg_match('/<span id="fic-syntax-status".*?<\/span>/s', $output, $matches);
+        $this->assertSame(1, $matched, 'edit.php must render a #fic-syntax-status indicator.');
+
+        return $matches[0];
+    }
+
+    public function testEditTemplateReportsJsonSyntaxState(): void
+    {
+        $valid = $this->renderTemplate('edit', $this->editorVars([
+            'filename' => 'config.json',
+            'extension' => 'json',
+            'content' => '{"status":"ok"}',
+        ]));
+
+        $invalid = $this->renderTemplate('edit', $this->editorVars([
+            'filename' => 'config.json',
+            'extension' => 'json',
+            'content' => '{"status":',
+        ]));
+
+        $this->assertStringContainsString('Valid JSON', $this->syntaxStatusOf($valid));
+        $this->assertStringNotContainsString('Invalid JSON Syntax', $this->syntaxStatusOf($valid));
+        $this->assertStringContainsString('Invalid JSON Syntax', $this->syntaxStatusOf($invalid));
+    }
+
+    public function testEditTemplateShowsPlainTextModeForNonJsonFormats(): void
+    {
+        $output = $this->renderTemplate('edit', $this->editorVars());
+
+        $this->assertStringContainsString('Plain Text Mode', $this->syntaxStatusOf($output));
+        // The JSON live-validation branch is not emitted at all for plain text
+        $this->assertStringNotContainsString('JSON.parse', $output);
+        $this->assertStringNotContainsString('Valid JSON', $output);
+    }
+
+    public function testEditTemplateHandlesEmptyAttachmentContent(): void
+    {
+        $output = $this->renderTemplate('edit', $this->editorVars(['content' => '']));
+
+        $this->assertStringContainsString('id="fic-line-count">0<', $output);
+        $this->assertStringContainsString('id="fic-char-count">0<', $output);
+        $this->assertStringContainsString('<textarea', $output);
+    }
+
     /**
      * Execute a plugin template the way Kanboard's template engine would:
      * variables extracted into scope, $this bound to a helper providing text->e().
@@ -423,17 +685,74 @@ class FakeUrlHelper
 }
 
 /**
+ * Mirrors Kanboard\Helper\FormHelper::csrf(), which emits a hidden token input.
+ */
+class FakeFormHelper
+{
+    public function csrf(): string
+    {
+        return '<input type="hidden" name="csrf_token" value="test-token"/>';
+    }
+}
+
+/**
+ * Mirrors Kanboard\Helper\UserHelper::hasProjectAccess($controller, $action, $projectId).
+ */
+class FakeUserHelper
+{
+    private bool $projectAccess = true;
+
+    public function setProjectAccess(bool $granted): void
+    {
+        $this->projectAccess = $granted;
+    }
+
+    public function hasProjectAccess(string $controller, string $action, int $projectId): bool
+    {
+        return $this->projectAccess;
+    }
+}
+
+/**
+ * Mirrors Kanboard\Helper\ModalHelper. The real helper renders an anchor; the
+ * stub emits an identifiable marker so tests can assert on the target action.
+ */
+class FakeModalHelper
+{
+    /**
+     * @param array<string, mixed> $params
+     */
+    public function medium(string $icon, string $label, string $controller, string $action, array $params = []): string
+    {
+        return sprintf(
+            '<a href="?%s" class="js-modal-medium" data-icon="%s">%s::%s %s</a>',
+            http_build_query(array_merge(['controller' => $controller, 'action' => $action], $params), '', '&amp;'),
+            htmlspecialchars($icon, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'),
+            $controller,
+            $action,
+            htmlspecialchars($label, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+        );
+    }
+}
+
+/**
  * Binds $this->text inside included plugin templates.
  */
 class FakeTemplateHelper
 {
     public FakeTextHelper $text;
     public FakeUrlHelper $url;
+    public FakeFormHelper $form;
+    public FakeUserHelper $user;
+    public FakeModalHelper $modal;
 
     public function __construct()
     {
         $this->text = new FakeTextHelper();
         $this->url = new FakeUrlHelper();
+        $this->form = new FakeFormHelper();
+        $this->user = new FakeUserHelper();
+        $this->modal = new FakeModalHelper();
     }
 
     /**
