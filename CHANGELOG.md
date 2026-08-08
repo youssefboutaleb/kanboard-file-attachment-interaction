@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.2.0] - 2026-08-08
+
+### Added
+- **CSV & TSV Read-Only Table Preview Engine**:
+  - `CsvPreviewHandler`: Format handler supporting `.csv` and `.tsv` attachments.
+  - `CsvParserService`: Memory-safe streaming parser supporting comma (`,`), semicolon (`;`), tab (`\t`), and pipe (`|`) field delimiters.
+  - Automatic delimiter detection based on frequency scoring across head lines.
+  - HTML entity escaping (`htmlspecialchars()`) applied to all CSV cell values to prevent XSS.
+  - Preview bounds capping output to first 100 rows and 50 columns to guarantee fast rendering under 8MB RAM.
+  - `Template/file/csv_preview.php`: Responsive modal table template view with styled headers, alternating row colors, row index column, delimiter badge, and truncation warning banners.
+- **Test Suite Expansion**:
+  - 18 new unit & integration tests covering CSV delimiter detection, table rendering, truncation limits, cell XSS escaping, and DIC container resolution (total 72 tests, 240 assertions).
+
+### Changed
+- Updated `FileValidationService` to whitelist `csv` and `tsv` extensions and MIME types (`text/csv`, `text/tab-separated-values`, `application/vnd.ms-excel`).
+- Updated `FileInteractionManager` to support name-based forced format resolution.
+- Updated `FilePreviewController` to route CSV previews to `FileInteractionCore:file/csv_preview`.
+
+---
+
 ## [0.1.0] - 2026-08-07
 
 ### Added

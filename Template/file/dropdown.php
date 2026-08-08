@@ -1,6 +1,6 @@
 <?php
 
-$allowedExtensions = ['txt', 'json', 'md', 'env', 'ini', 'conf', 'yaml', 'yml', 'xml', 'log', 'html', 'htm'];
+$allowedExtensions = ['txt', 'json', 'md', 'env', 'ini', 'conf', 'yaml', 'yml', 'xml', 'log', 'html', 'htm', 'csv', 'tsv'];
 $extension = strtolower(pathinfo($file['name'] ?? '', PATHINFO_EXTENSION));
 
 // The project-overview hook passes `project` + `file` only; the task hooks pass `task` + `file`.

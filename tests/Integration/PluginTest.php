@@ -28,6 +28,7 @@ if (!class_exists('Kanboard\Core\Plugin\Base')) {
 require_once __DIR__ . '/../../Plugin.php';
 
 use Kanboard\Plugin\FileInteractionCore\Plugin;
+use Kanboard\Plugin\FileInteractionCore\Service\FileValidationService;
 
 class PluginTest extends TestCase
 {
@@ -59,7 +60,7 @@ class PluginTest extends TestCase
     public function testPluginMetadata(): void
     {
         $this->assertSame('FileInteractionCore', $this->plugin->getPluginName());
-        $this->assertSame('0.1.0', $this->plugin->getPluginVersion());
+        $this->assertSame('0.2.0', $this->plugin->getPluginVersion());
         $this->assertSame('Security & Engineering Team', $this->plugin->getPluginAuthor());
         $this->assertSame('https://github.com/youssefboutaleb/kanboard-file-attachment-interaction', $this->plugin->getPluginHomepage());
         $this->assertNotEmpty($this->plugin->getPluginDescription());
@@ -69,5 +70,36 @@ class PluginTest extends TestCase
     {
         $this->plugin->initialize();
         $this->assertTrue(true);
+    }
+
+    /**
+     * The dropdown template gates the "Safe Preview" entry point with its own
+     * extension list; if it drifts from the validator whitelist, previewable
+     * attachments silently lose their menu item (or offer one that 400s).
+     */
+    public function testDropdownTemplateWhitelistMatchesValidationService(): void
+    {
+        $template = file_get_contents(__DIR__ . '/../../Template/file/dropdown.php');
+        $this->assertNotFalse($template);
+
+        $matched = preg_match('/\$allowedExtensions\s*=\s*\[(.*?)\];/s', $template, $matches);
+        $this->assertSame(1, $matched, 'dropdown.php must declare an $allowedExtensions array.');
+
+        foreach (FileValidationService::ALLOWED_EXTENSIONS as $extension) {
+            $this->assertStringContainsString(
+                "'" . $extension . "'",
+                $matches[1],
+                "dropdown.php is missing the validated extension .{$extension}"
+            );
+        }
+    }
+
+    public function testDropdownTemplateExposesTabularExtensions(): void
+    {
+        $template = file_get_contents(__DIR__ . '/../../Template/file/dropdown.php');
+        $this->assertNotFalse($template);
+
+        $this->assertStringContainsString("'csv'", $template);
+        $this->assertStringContainsString("'tsv'", $template);
     }
 }

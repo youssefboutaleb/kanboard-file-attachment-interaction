@@ -189,4 +189,27 @@ class FilePreviewControllerRuntimeTest extends TestCase
         $this->assertIsArray($result);
         $this->assertTrue($result['success']);
     }
+
+    public function testRendersCsvPreviewTemplateForCsvFile(): void
+    {
+        $template = new FakeTemplate();
+        $response = new FakeResponse();
+
+        $container = $this->buildContainer(
+            ['file_id' => 12, 'task_id' => 1, 'project_id' => 1],
+            ['name' => 'data.csv', 'path' => 'tasks/1/data.csv', 'task_id' => 1, 'project_id' => 1],
+            "id,name,role\n1,Alice,Admin\n2,Bob,User",
+            $template,
+            $response
+        );
+
+        $controller = new FilePreviewController($container, new PermissionService(new MockPermissionChecker(true)));
+        $controller->show();
+
+        $this->assertSame('FileInteractionCore:file/csv_preview', $template->renderedTemplate);
+        $this->assertSame(200, $response->statusCode);
+        $this->assertSame('CsvPreviewHandler', $template->renderedVars['handler']);
+        $this->assertSame(',', $template->renderedVars['metadata']['delimiter']);
+        $this->assertCount(3, $template->renderedVars['metadata']['rows']);
+    }
 }

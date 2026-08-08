@@ -1,5 +1,6 @@
 {
     "name": "kanboard/plugin-file-attachment-interaction",
+    "version": "0.2.0",
     "description": "Secure, modular file interaction framework for Kanboard task attachments",
     "type": "kanboard-plugin",
     "license": "MIT",

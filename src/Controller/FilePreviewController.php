@@ -14,6 +14,7 @@ use Kanboard\Plugin\FileInteractionCore\Core\Contract\FileContentFetcherInterfac
 use Kanboard\Plugin\FileInteractionCore\Core\FileInteractionManager;
 use Kanboard\Plugin\FileInteractionCore\Exception\AccessDeniedException;
 use Kanboard\Plugin\FileInteractionCore\Exception\InvalidFileException;
+use Kanboard\Plugin\FileInteractionCore\Handler\CsvPreviewHandler;
 use Kanboard\Plugin\FileInteractionCore\Handler\JsonPreviewHandler;
 use Kanboard\Plugin\FileInteractionCore\Handler\TextPreviewHandler;
 use Kanboard\Plugin\FileInteractionCore\Service\FileValidationService;
@@ -47,8 +48,11 @@ class FilePreviewController extends BaseController
 
         if ($interactionManager === null) {
             $interactionManager = new FileInteractionManager();
-            $interactionManager->registerHandler(new TextPreviewHandler());
+            // Registration order matters: TextPreviewHandler accepts ANY text/* MIME
+            // type, so format-specific handlers must be registered ahead of it.
+            $interactionManager->registerHandler(new CsvPreviewHandler());
             $interactionManager->registerHandler(new JsonPreviewHandler());
+            $interactionManager->registerHandler(new TextPreviewHandler());
         }
 
         $this->interactionManager = $interactionManager;
@@ -191,7 +195,12 @@ class FilePreviewController extends BaseController
             $this->validationService->validateFileSize(strlen($content));
 
             // Infer default MIME type if not provided
-            $resolvedMime = $mimeType ?? ($extension === 'json' ? 'application/json' : 'text/plain');
+            $resolvedMime = $mimeType ?? match ($extension) {
+                'json' => 'application/json',
+                'csv' => 'text/csv',
+                'tsv' => 'text/tab-separated-values',
+                default => 'text/plain',
+            };
 
             // Step 3: Resolve appropriate handler
             $handler = $this->interactionManager->resolveHandler($extension, $resolvedMime, $forcedFormat);
@@ -226,7 +235,11 @@ class FilePreviewController extends BaseController
 
         // If running inside Kanboard HTTP response context, render template HTML
         if ($canRender) {
-            return $this->response->html($this->template->render('FileInteractionCore:file/preview', $responseData));
+            $templateName = $handler->getHandlerName() === 'CsvPreviewHandler'
+                ? 'FileInteractionCore:file/csv_preview'
+                : 'FileInteractionCore:file/preview';
+
+            return $this->response->html($this->template->render($templateName, $responseData));
         }
 
         return $responseData;

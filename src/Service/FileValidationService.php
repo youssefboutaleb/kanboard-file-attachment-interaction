@@ -14,10 +14,11 @@ class FileValidationService
     public const DEFAULT_MAX_SIZE_BYTES = 524288; // 500 KB
 
     /**
-     * Allowed file extensions for Milestone 1.
+     * Allowed file extensions (Milestone 1 text/JSON formats + Milestone 2 tabular formats).
      */
     public const ALLOWED_EXTENSIONS = [
-        'txt', 'json', 'md', 'env', 'ini', 'conf', 'yaml', 'yml', 'xml', 'log', 'html', 'htm'
+        'txt', 'json', 'md', 'env', 'ini', 'conf', 'yaml', 'yml', 'xml', 'log', 'html', 'htm',
+        'csv', 'tsv'
     ];
 
     /**
@@ -38,6 +39,9 @@ class FileValidationService
         'log'  => ['text/plain', 'text/x-log'],
         'html' => ['text/html', 'text/plain', 'application/xhtml+xml'],
         'htm'  => ['text/html', 'text/plain'],
+        // Spreadsheet exports frequently mislabel .csv as an Excel MIME type
+        'csv'  => ['text/csv', 'application/csv', 'text/plain', 'application/vnd.ms-excel'],
+        'tsv'  => ['text/tab-separated-values', 'text/tsv', 'text/plain'],
     ];
 
     private int $maxSizeBytes;

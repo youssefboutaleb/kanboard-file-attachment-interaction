@@ -20,27 +20,27 @@ This document defines the agentic workflow, automated quality gates, git hooks, 
 - [x] **Task 9: Automated Test Expansion** (`tests/Integration/PluginTest.php`, `tests/Unit/EdgeCasesTest.php`) (Completed)
 - [x] **Task 10: Manual Checklist & Verification** (`docs/MANUAL_TESTING.md` matrix, 100% test pass rate verified) (Completed)
 
-### Milestone 2: Safe CSV Read-Only Table Preview
+### Milestone 2: Safe CSV Read-Only Table Preview (100% RELEASED - v0.2.0)
 - [x] **Task 11: Delimiter Detection & Parsing Service** (`CsvParserService` for `,`, `;`, `\t`, `|` detection) (Completed)
-- [ ] **Task 12: CSV Preview Handler** (`CsvPreviewHandler`)
-- [ ] **Task 13: File Validation & Registry Expansion**
-- [ ] **Task 14: Responsive Safe CSV Table Template View**
-- [ ] **Task 15: Verification, Packaging & Release v0.2.0**
+- [x] **Task 12: CSV Preview Handler** (`CsvParserService`, `CsvPreviewHandler` for `.csv` and `.tsv`) (Completed)
+- [x] **Task 13: File Validation & Registry Expansion** (`FileValidationService`, `FileInteractionManager` name-based forced format, `FilePreviewController`) (Completed)
+- [x] **Task 14: Responsive Safe CSV Table Template View** (`Template/file/csv_preview.php`, `FilePreviewController` template selection) (Completed)
+- [x] **Task 15: Verification, Packaging & Release v0.2.0** (`CHANGELOG.md`, `dist/FileInteractionCore-0.2.0.zip`, 72 tests passing 100%) (Completed)
 
 ---
 
 ## 🛠️ Essential Commands & Agentic Scripts
 
 ```bash
-# Automated Agent Verification Pipeline (PHP Syntax, Composer, PHPStan Level 8, 51 Tests Passing)
+# Automated Agent Verification Pipeline (PHP Syntax, Composer, PHPStan Level 8, 72 Tests Passing)
 bash scripts/agent-verify.sh
 # or via composer:
 composer agent-verify
 
-# Test Execution via Docker (PHP 8.1 container - 51 Tests Passing)
+# Test Execution via Docker (PHP 8.1 container - 72 Tests Passing)
 docker run --rm -v $(pwd):/app -w /app php:8.1-cli vendor/bin/phpunit
 
-# Package Plugin Release
+# Package Plugin Release v0.2.0
 bash scripts/package-plugin.sh # or composer package
 
 # Local Live Kanboard Test Instance
@@ -83,3 +83,4 @@ Every task executed by Claude or AI agents follows a 6-phase loop:
 3. **Kanboard `__isset()` Trap**: `Kanboard\Core\Base` implements magic `__get()` but NOT `__isset()`. Avoid `isset($this->serviceName)`; use container `offsetExists()` via `hasService()`.
 4. **Kanboard Template Hook Naming**: Core Kanboard file dropdown hook names are `template:task-file:documents:dropdown` and `template:task-file:images:dropdown`.
 5. **Safe Plain Text View**: For `.html`, `.yml`, `.env`, and `.json` attachments, output is strictly HTML-entity escaped (`htmlspecialchars()`) preventing browser script execution or DOM injection.
+6. **CSV Modal View Dispatch**: `FilePreviewController` dispatches `FileInteractionCore:file/csv_preview` for CSV attachments, rendering responsive data tables with cell entity escaping and truncation notices.

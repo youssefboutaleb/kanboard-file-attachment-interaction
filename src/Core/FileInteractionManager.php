@@ -37,12 +37,22 @@ class FileInteractionManager
         $normalizedFormat = $forcedFormat !== null ? strtolower(trim($forcedFormat)) : null;
 
         if ($normalizedFormat !== null) {
+            // "text" and "raw" mean "ignore the file format and render escaped plain
+            // text", so the named handler is used even when supports() would decline.
+            $isPlainTextFormat = $normalizedFormat === 'text' || $normalizedFormat === 'raw';
+
+            // Match the forced format against the handler NAME first. Matching by
+            // registration order instead would hand `format=text` to whichever handler
+            // happens to be registered first (e.g. CsvPreviewHandler).
             foreach ($this->handlers as $handler) {
                 $name = strtolower($handler->getHandlerName());
-                if (str_contains($name, $normalizedFormat) || $normalizedFormat === 'text' || $normalizedFormat === 'raw') {
-                    if ($handler->supports($normalizedExtension, $normalizedMimeType) || $normalizedFormat === 'text' || $normalizedFormat === 'raw') {
-                        return $handler;
-                    }
+
+                if (!str_contains($name, $normalizedFormat)) {
+                    continue;
+                }
+
+                if ($isPlainTextFormat || $handler->supports($normalizedExtension, $normalizedMimeType)) {
+                    return $handler;
                 }
             }
         }

@@ -77,4 +77,45 @@ class FilePreviewControllerTest extends TestCase
         $this->assertSame('TextPreviewHandler', $response['handler']);
         $this->assertSame('{&quot;status&quot;:&quot;ok&quot;}', $response['content']);
     }
+
+    public function testShowRoutesCsvAttachmentToCsvHandler(): void
+    {
+        $csv = "id,name,role\n1,Alice,Admin\n2,Bob,User";
+        $response = $this->controller->show(1, 10, 100, 'people.csv', $csv);
+
+        $this->assertTrue($response['success']);
+        $this->assertSame('csv', $response['extension']);
+        $this->assertSame('CsvPreviewHandler', $response['handler']);
+        $this->assertSame(',', $response['metadata']['delimiter']);
+        $this->assertSame(3, $response['metadata']['totalRows']);
+        $this->assertSame(['id', 'name', 'role'], $response['metadata']['rows'][0]);
+    }
+
+    public function testShowRoutesTsvAttachmentToCsvHandler(): void
+    {
+        $tsv = "id\tname\n1\tAlice\n2\tBob";
+        $response = $this->controller->show(1, 10, 100, 'people.tsv', $tsv);
+
+        $this->assertSame('tsv', $response['extension']);
+        $this->assertSame('CsvPreviewHandler', $response['handler']);
+        $this->assertSame("\t", $response['metadata']['delimiter']);
+    }
+
+    public function testShowEscapesMaliciousCsvCellsEndToEnd(): void
+    {
+        $csv = "name,payload\nEvil,\"<script>alert(1)</script>\"";
+        $response = $this->controller->show(1, 10, 100, 'attack.csv', $csv);
+
+        $rendered = json_encode($response['metadata']['rows']);
+
+        $this->assertSame('&lt;script&gt;alert(1)&lt;/script&gt;', $response['metadata']['rows'][1][1]);
+        $this->assertStringNotContainsString('<script>', (string) $rendered);
+    }
+
+    public function testShowStillRoutesPlainTextAttachmentsToTextHandler(): void
+    {
+        $response = $this->controller->show(1, 10, 100, 'notes.txt', "line one\nline two");
+
+        $this->assertSame('TextPreviewHandler', $response['handler']);
+    }
 }

@@ -107,4 +107,71 @@ class FileInteractionManagerTest extends TestCase
         $resolved = $manager->resolveHandler('json', 'application/json', 'text');
         $this->assertSame($textHandler, $resolved);
     }
+
+    /**
+     * Build the same registry the controller wires up by default.
+     *
+     * @return array{FileInteractionManager, \Kanboard\Plugin\FileInteractionCore\Handler\CsvPreviewHandler, \Kanboard\Plugin\FileInteractionCore\Handler\JsonPreviewHandler, \Kanboard\Plugin\FileInteractionCore\Handler\TextPreviewHandler}
+     */
+    private function buildDefaultRegistry(): array
+    {
+        $manager = new FileInteractionManager();
+        $csvHandler = new \Kanboard\Plugin\FileInteractionCore\Handler\CsvPreviewHandler();
+        $jsonHandler = new \Kanboard\Plugin\FileInteractionCore\Handler\JsonPreviewHandler();
+        $textHandler = new \Kanboard\Plugin\FileInteractionCore\Handler\TextPreviewHandler();
+
+        $manager->registerHandler($csvHandler);
+        $manager->registerHandler($jsonHandler);
+        $manager->registerHandler($textHandler);
+
+        return [$manager, $csvHandler, $jsonHandler, $textHandler];
+    }
+
+    public function testManagerResolvesCsvHandlerForTabularExtensions(): void
+    {
+        [$manager, $csvHandler] = $this->buildDefaultRegistry();
+
+        $this->assertSame($csvHandler, $manager->resolveHandler('csv', 'text/csv'));
+        $this->assertSame($csvHandler, $manager->resolveHandler('tsv', 'text/tab-separated-values'));
+        $this->assertSame($csvHandler, $manager->resolveHandler('.CSV ', 'APPLICATION/CSV'));
+    }
+
+    /**
+     * TextPreviewHandler claims every text/* MIME type, so it must never win the
+     * race for a .csv attachment that was labelled as plain text.
+     */
+    public function testCsvHandlerWinsOverGenericTextHandlerForPlainTextMime(): void
+    {
+        [$manager, $csvHandler] = $this->buildDefaultRegistry();
+
+        $this->assertSame($csvHandler, $manager->resolveHandler('csv', 'text/plain'));
+        $this->assertSame($csvHandler, $manager->resolveHandler('tsv', 'text/plain'));
+    }
+
+    public function testExistingHandlerRoutingIsUnaffectedByCsvRegistration(): void
+    {
+        [$manager, , $jsonHandler, $textHandler] = $this->buildDefaultRegistry();
+
+        $this->assertSame($textHandler, $manager->resolveHandler('txt', 'text/plain'));
+        $this->assertSame($textHandler, $manager->resolveHandler('md', 'text/markdown'));
+        $this->assertSame($textHandler, $manager->resolveHandler('html', 'text/html'));
+        $this->assertSame($jsonHandler, $manager->resolveHandler('json', 'application/json'));
+        $this->assertNull($manager->resolveHandler('exe', 'application/octet-stream'));
+    }
+
+    public function testForcedTextFormatIgnoresRegistrationOrder(): void
+    {
+        [$manager, , , $textHandler] = $this->buildDefaultRegistry();
+
+        // CsvPreviewHandler is registered first, but "text" must resolve by name
+        $this->assertSame($textHandler, $manager->resolveHandler('csv', 'text/csv', 'text'));
+        $this->assertSame($textHandler, $manager->resolveHandler('json', 'application/json', 'text'));
+    }
+
+    public function testForcedCsvFormatResolvesCsvHandler(): void
+    {
+        [$manager, $csvHandler] = $this->buildDefaultRegistry();
+
+        $this->assertSame($csvHandler, $manager->resolveHandler('csv', 'text/plain', 'csv'));
+    }
 }
