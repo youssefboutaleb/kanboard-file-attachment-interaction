@@ -1,84 +1,131 @@
-# Security Specification & Guidelines
+# Security Specification & Threat Model
 
-Security is a foundational requirement for `kanboard-file-interaction-core`. File attachments uploaded by users are considered **untrusted raw input**.
+Security is the primary non-negotiable requirement for `kanboard-file-interaction-core`. All file attachments uploaded by users are considered **untrusted hostile input**.
 
 ---
 
-## Threat Model & Risk Mitigations
+## 🛡️ 1. Multi-Layer Defense-in-Depth Model
+
+```mermaid
+flowchart TD
+    classDef client fill:#e1f5fe,stroke:#0288d1,stroke-width:2px;
+    classDef gate fill:#fff3e0,stroke:#f57c00,stroke-width:2px;
+    classDef safe fill:#e8f5e9,stroke:#388e3c,stroke-width:2px;
+    classDef block fill:#ffebee,stroke:#d32f2f,stroke-width:2px;
+
+    Req[🌐 Incoming Request]:::client --> L1
+
+    subgraph L1 [1. Access Control Gate]
+        G1{PermissionService<br/>Project/Task ACL}:::gate
+    end
+    G1 -->|Unauthorized| E1[⛔ HTTP 403 Forbidden]:::block
+    G1 -->|Authorized| L2
+
+    subgraph L2 [2. Path & Extension Gate]
+        G2{FileValidationService<br/>basename + Whitelist}:::gate
+    end
+    G2 -->|Invalid Path / Illegal Ext| E2[⛔ HTTP 400 Bad Request]:::block
+    G2 -->|Valid| L3
+
+    subgraph L3 [3. Size & Payload Gate]
+        G3{Size Bounds & Bounded 8KB Sniff}:::gate
+    end
+    G3 -->|Exceeds Cap| E3[⛔ HTTP 400 Size Cap Error]:::block
+    G3 -->|Unclassified Binary| Notice[📋 Safe Binary Notice<br/>Zero Bytes Emitted]:::safe
+    G3 -->|Safe Format| L4
+
+    subgraph L4 [4. Memory-Safe Isolation]
+        DOM[OpenXML Anti-XXE DOM Parser<br/>LIBXML_NONET]:::safe
+        Escape[HTML Entity Escaper<br/>htmlspecialchars UTF-8]:::safe
+        Matrix[Spreadsheet Matrix Parser<br/>No Formula Execution]:::safe
+    end
+
+    subgraph L5 [5. Delivery Sandbox]
+        DOM --> Out[🖥️ Sandboxed Modal View]:::safe
+        Escape --> Out
+        Matrix --> Out
+        Notice --> Out
+        Stream[🔒 FileStreamController<br/>CSP: frame-ancestors 'self'<br/>nosniff & private cache]:::safe
+    end
+
+    Out --> Client[👤 Browser]:::client
+    Stream --> Client
+```
+
+---
+
+## 🔒 2. Threat Categories & Technical Mitigations
 
 ### 1. Cross-Site Scripting (XSS)
-- **Threat**: Attackers upload files containing script payloads (`<script>`, inline SVG JS, HTML event handlers) to execute code in the user's browser session.
+- **Threat**: Uploaded files contain malicious script payloads (`<script>`, inline SVG JS, HTML attributes, event handlers) to hijack user sessions.
 - **Mitigation**:
-  - All preview text is converted into safe HTML entities using `htmlspecialchars($content, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')`.
-  - Content-Type headers set to `text/plain` or strict iframe sandboxing when rendering previews.
-  - HTML rendering is explicitly **disabled** in Milestone 1.
+  - All plain text, JSON values, table cells, slide contents, and metadata are escaped using `htmlspecialchars($str, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')`.
+  - Raw HTML and SVG rendering is strictly disabled. Even HTML attachments (`.html`, `.htm`) are displayed as **escaped source code** in the syntax viewer.
+  - Active content extensions (`.svg`, `.html`, `.js`) are explicitly excluded from inline streaming endpoints.
 
-### 2. Path Traversal & Arbitrary File Read
-- **Threat**: Crafted filenames or paths (`../../../../etc/passwd` or `C:\boot.ini`) used to read host system files.
+### 2. Path Traversal & Arbitrary File Reads
+- **Threat**: Manipulated filenames (`../../../../etc/passwd`, `C:\boot.ini`, null bytes) used to read sensitive host files.
 - **Mitigation**:
-  - Filenames are sanitized using `basename()`.
-  - Storage keys are looked up strictly via Kanboard's internal attachment ID mapping, never raw user path parameters.
+  - `FileValidationService::sanitizeFilename()` wraps all filenames in `basename()` checks and rejects null bytes (`\0`) and dot sequences (`.`, `..`).
+  - Attachment records are looked up exclusively via Kanboard internal numeric primary keys (`file_id`), never user-supplied file paths.
 
-### 3. Permission Bypass / Unauthorized File Access
-- **Threat**: Users access attachment previews for tasks/projects they do not have access rights to view.
+### 3. XML External Entity (XXE) & SSRF in Office Documents
+- **Threat**: Uploaded `.docx`, `.pptx`, or `.xlsx` OpenXML ZIP packages containing crafted `<!ENTITY>` tags attempting to trigger external DTD lookups or local file inclusion.
 - **Mitigation**:
-  - All preview routes invoke `PermissionService` to verify that the logged-in user has read permissions for the specific project and task prior to retrieving file content.
+  - `DocxParserService` and `PptxParserService` enforce strict libxml security flags during DOM parsing:
+    ```php
+    libxml_use_internal_errors(true);
+    $dom->loadXML($xmlContent, LIBXML_NONET | LIBXML_NOBLANKS);
+    ```
+  - Disabling external network fetching (`LIBXML_NONET`) guarantees XXE injection is neutralized.
 
-### 4. Denial of Service (DoS) via Large File Allocation
-- **Threat**: Uploading massive files (e.g. 100MB+ text/JSON files) causing server memory exhaustion during parsing or formatting.
+### 4. Clickjacking & Frame Hijacking of Inline Streams
+- **Threat**: Third-party malicious sites embedding Kanboard attachment stream URLs in `<iframe>` elements to spy on confidential PDFs or trick authenticated users.
 - **Mitigation**:
-  - `FileValidationService` enforces a hard maximum preview size cap (default: **500 KB**).
-  - Preview reads request only up to the maximum byte limit.
+  - Kanboard core's default `X-Frame-Options: DENY` blocks embedded `<object>` rendering. `FileStreamController` overrides this specifically for inline binary streams using standardized CSP:
+    ```http
+    Content-Security-Policy: default-src 'none'; frame-ancestors 'self'
+    X-Content-Type-Options: nosniff
+    Cache-Control: private, max-age=300
+    ```
+  - `frame-ancestors 'self'` restricts iframe/object embedding exclusively to the Kanboard origin.
+  - `default-src 'none'` ensures the streamed document cannot initiate outbound subresource requests.
 
-### 5. Clickjacking / Cross-Origin Embedding of Attachment Streams
-- **Threat**: A third-party site frames an attachment stream URL to read privileged document content, or overlays it to trick a logged-in user.
-- **Context**: `FileStreamController::inline` deliberately drops the `X-Frame-Options: DENY` header that `BootstrapMiddleware` applies to every core response. That header is what prevented the browser from rendering a PDF inside the modal's `<object>` container at all, and it cannot be selectively overridden through Kanboard's `Response` service. Downgrading it to `SAMEORIGIN` was rejected because it has historically also blocked Chrome's out-of-process PDF viewer.
+### 5. Memory Exhaustion & Denial of Service (DoS)
+- **Threat**: Giant multi-gigabyte files causing PHP worker memory exhaustion (OOM crashes) during parsing or buffering.
 - **Mitigation**:
-  - `Content-Security-Policy: default-src 'none'; frame-ancestors 'self'` replaces it. `frame-ancestors` is the standardized CSP-2 equivalent, honoured by every browser capable of displaying an embedded PDF, and restricts embedding to this origin only.
-  - `default-src 'none'` additionally prevents the streamed document from fetching any subresource of its own.
-  - The relaxation is scoped to this one action; every other plugin and core response keeps `DENY`.
-  - `Cache-Control: private` keeps ACL-protected bytes out of shared caches (core's own `browser` action uses `public`).
-  - The route stays behind Kanboard's authentication and project-authorization middleware, plus the plugin's own `PermissionService` check — an unauthenticated request is redirected to `/login` and never reaches the file.
+  - Hard per-format size limits are enforced before loading payloads into memory:
+    - Text / Code / JSON: **500 KB**
+    - Spreadsheets (Excel): **5 MB**
+    - Word & PDF Documents: **10 MB**
+    - PowerPoint Presentations: **15 MB**
+  - For unclassified attachments, `FilePreviewController::CONTENT_READ_CEILING_BYTES` (10 MB) verifies the database row's declared size before initiating object storage reads.
+  - OpenXML cell/row iteration includes truncation guards (`maxRows`, `maxColumns`).
 
-### 6. Inline Streaming of Active Content
-- **Threat**: An uploaded `.html`, `.svg`, or `.js` attachment served inline from the application's own origin executes as same-origin script — stored XSS with full session access.
+### 6. Bounded Inspection of Unknown Attachments
+- **Threat**: Allowing arbitrary file extensions could route unknown binaries to text highlighters or cause uncontrolled buffer allocation.
 - **Mitigation**:
-  - `FileStreamController::INLINE_MIME_TYPES` is a hard allow-list containing **`pdf` only**, deliberately far narrower than `FileValidationService::ALLOWED_EXTENSIONS`. Being previewable through an escaping handler does not make a format safe to serve as a live document.
-  - Any other extension is rejected with `400` before any byte is emitted.
-  - The payload must carry the format's magic signature (`%PDF` within the first 1024 bytes), so a mislabelled file cannot be announced to the browser as a document.
-  - `Content-Type` is forced from the allow-list and paired with `X-Content-Type-Options: nosniff`, so the browser cannot re-interpret the response.
-  - `Content-Disposition: inline` filenames are stripped of quotes, backslashes and control characters to prevent header injection.
+  - `BinaryContentDetector` inspects a **bounded 8 KB head sample**.
+  - If null bytes or a control-character ratio exceeding 10% are detected, the file is classified as binary.
+  - Binary payloads emit a safe download notice with **zero file content** transmitted.
+  - Printable text is rendered strictly through `TextPreviewHandler` with entity escaping.
 
-### 7. Preview of Unclassified Attachments (Unknown / Missing Extension)
-- **Threat**: Widening the preview surface beyond the extension whitelist lets an arbitrary upload reach the rendering path — an unrecognised payload could be parsed, rendered as live markup, or buffered without bound.
+### 7. CSRF & Write Protection in Live Editor
+- **Threat**: Cross-Site Request Forgery modifying attachment contents or overwriting project files.
 - **Mitigation**:
-  - `BinaryContentDetector` classifies the payload from a **bounded 8 KB sample** (NUL bytes, control-character ratio above 10%, invalid UTF-8). Detection never parses or executes the content, and there is no magic-number allow-list to keep current.
-  - Only two outcomes exist, both safe: printable text is rendered through `TextPreviewHandler`, which entity-escapes the whole payload; anything else renders the binary notice, which emits **no file content at all** — only metadata.
-  - A false positive costs the user a download prompt. It can never cause an unsafe render, which is why detection is deliberately conservative.
-  - Picking a syntax language cannot force binary content into a text view: classification runs before handler selection.
-  - `FilePreviewController::CONTENT_READ_CEILING_BYTES` (10 MB) skips the content read entirely using the attachment row's declared size, so an oversized upload is never buffered. The declared size is also used for the cap check, so a skipped read cannot pass validation as a zero-length buffer.
-  - ACL enforcement runs before any content is inspected.
-
-### 8. Active Content Reaching a Preview Path
-- **Threat**: SVG and other active-content formats executing as same-origin script if rendered or served with their native MIME type.
-- **Mitigation**:
-  - `FileValidationService::CORE_MEDIA_EXTENSIONS` keeps image, audio and video formats — including `svg` — rejected outright. They are neither previewed nor content-inspected, so no URL can route them into a preview path. Kanboard core owns those viewers.
-  - Independently, `FileStreamController::INLINE_MIME_TYPES` (§6) restricts inline streaming to `pdf`, so even an allow-listed format cannot be served as a live document unless explicitly cleared.
-  - Whitelisted markup formats (`.html`, `.htm`, `.xml`) are previewable but only ever as **escaped text** — never injected into the DOM as markup.
-  - The `lang` picker parameter is validated against `SyntaxLanguageRegistry`; an unrecognised or crafted value is discarded before it can reach the highlighter or the rendered output.
-
-### 9. Dangerous Extension / Content Execution
-- **Threat**: Execution of uploaded `.php`, `.sh`, `.exe`, `.py` scripts on the server.
-- **Mitigation**:
-  - Strict extension whitelist (`.txt`, `.json`, `.md`).
-  - Disallowed extensions return `UnsupportedFileTypeException` and are rejected before read operations occur.
+  - `FileEditController::update()` requires valid CSRF tokens validated against Kanboard's `Token` service.
+  - Write permissions require `PermissionService::canUserWriteFile()`, which verifies project member privileges.
+  - Pre-save validation (`FileEditValidationService`) checks JSON syntax and enforce size limits before writing to storage.
 
 ---
 
-## Security Checklist for Code Contributions
+## 📋 Contributor Security Checklist
 
-- [ ] Does input validation use strict whitelisting?
-- [ ] Is all output rendered in templates safely escaped?
-- [ ] Are project/task ACL permissions checked before reading files?
-- [ ] Is file path traversal impossible by design?
-- [ ] Are file size limits enforced before loading contents into memory?
+Before proposing code changes:
+
+- [ ] Is all template output wrapped in `htmlspecialchars()` or `$this->escapeHtml()`?
+- [ ] Are path traversal sequences (`..`, `\0`) sanitized with `basename()`?
+- [ ] Are ACL permissions verified prior to accessing storage records?
+- [ ] Are XML parser instances configured with `LIBXML_NONET`?
+- [ ] Are file size caps checked before buffering full attachment contents?
+- [ ] Are inline streaming responses secured with `frame-ancestors 'self'` and `nosniff`?

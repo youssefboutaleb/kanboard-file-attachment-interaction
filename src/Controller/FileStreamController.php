@@ -10,6 +10,7 @@ if (!class_exists('Kanboard\Controller\BaseController')) {
 }
 
 use Kanboard\Controller\BaseController;
+use Kanboard\Plugin\FileInteractionCore\Controller\Concerns\HandlesAttachmentInteraction;
 use Kanboard\Plugin\FileInteractionCore\Core\Contract\StreamEmitterInterface;
 use Kanboard\Plugin\FileInteractionCore\Exception\AccessDeniedException;
 use Kanboard\Plugin\FileInteractionCore\Exception\InvalidFileException;
@@ -42,6 +43,8 @@ use Kanboard\Plugin\FileInteractionCore\Service\PermissionService;
  */
 class FileStreamController extends BaseController
 {
+    use HandlesAttachmentInteraction;
+
     /**
      * Formats cleared for inline streaming, mapped to their forced MIME type.
      *
@@ -101,20 +104,6 @@ class FileStreamController extends BaseController
         $this->permissionService = $permissionService ?? new PermissionService();
         $this->validationService = $validationService ?? new FileValidationService();
         $this->emitter = $emitter ?? new HttpStreamEmitter();
-    }
-
-    /**
-     * Determine whether a Kanboard container service is available.
-     *
-     * NOTE: `Kanboard\Core\Base` exposes services through `__get()` but does NOT
-     * implement `__isset()`, so `isset($this->request)` is ALWAYS false at
-     * runtime. Probe the container directly instead.
-     */
-    private function hasService(string $name): bool
-    {
-        $container = $this->container;
-
-        return $container instanceof \ArrayAccess && (bool) $container->offsetExists($name);
     }
 
     /**
@@ -340,35 +329,7 @@ class FileStreamController extends BaseController
      */
     private function readAttachment(string $path): ?string
     {
-        if ($this->hasService('objectStorage')) {
-            try {
-                $content = $this->objectStorage->get($path);
-                if (is_string($content) && $content !== '') {
-                    return $content;
-                }
-            } catch (\Throwable $e) {
-                // fall through to the filesystem fallback
-            }
-        }
-
-        // Fallback for runtimes where the objectStorage wrapper is uninitialized.
-        // basename() on each segment is not possible here (paths are nested), so
-        // reject any traversal sequence outright instead.
-        if (str_contains($path, '..') || str_contains($path, "\0")) {
-            return null;
-        }
-
-        $filesDir = defined('FILES_DIR') ? FILES_DIR : '/var/www/app/data/files';
-        $filePath = rtrim($filesDir, '/') . '/' . ltrim($path, '/');
-
-        if (is_file($filePath) && is_readable($filePath)) {
-            $contentRead = file_get_contents($filePath);
-            if ($contentRead !== false) {
-                return $contentRead;
-            }
-        }
-
-        return null;
+        return $this->readAttachmentBytes($path);
     }
 
     /**

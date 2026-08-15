@@ -11,7 +11,7 @@ use Kanboard\Plugin\FileInteractionCore\Service\SyntaxLanguageRegistry;
 /**
  * Safe code & config syntax highlighting preview handler supporting .json, .yml, .yaml, .xml, .html, .sh, .py, .php, .js, .css, .sql.
  */
-class CodePreviewHandler implements FileHandlerInterface
+class CodePreviewHandler extends AbstractPreviewHandler
 {
     public const SUPPORTED_EXTENSIONS = [
         'json', 'yml', 'yaml', 'xml', 'html', 'htm', 'sh', 'bash', 'py', 'php', 'js', 'css', 'sql'
@@ -19,14 +19,17 @@ class CodePreviewHandler implements FileHandlerInterface
 
     private SyntaxLanguageRegistry $languageRegistry;
 
-    public function __construct(?SyntaxLanguageRegistry $languageRegistry = null)
-    {
+    public function __construct(
+        ?SyntaxLanguageRegistry $languageRegistry = null,
+        int $maxSizeBytes = self::DEFAULT_MAX_SIZE_BYTES
+    ) {
+        parent::__construct($maxSizeBytes);
         $this->languageRegistry = $languageRegistry ?? new SyntaxLanguageRegistry();
     }
 
     public function supports(string $extension, string $mimeType): bool
     {
-        $normalizedExt = strtolower(ltrim(trim($extension), '.'));
+        $normalizedExt = $this->normalizeExtension($extension);
         return in_array($normalizedExt, self::SUPPORTED_EXTENSIONS, true);
     }
 
@@ -53,13 +56,13 @@ class CodePreviewHandler implements FileHandlerInterface
             : $this->languageRegistry->resolveFromExtension($language);
 
         // Step 1: Escape code content to guarantee XSS safety
-        $escapedContent = htmlspecialchars($content, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $escapedContent = $this->escapeHtml($content);
 
         // Step 2: Highlight tokens safely
         $highlighted = $this->highlightSyntax($escapedContent, $language, $languageId);
 
-        $lineCount = substr_count($content, "\n") + (trim($content) !== '' ? 1 : 0);
-        $charCount = mb_strlen($content, 'UTF-8');
+        $lineCount = $this->countLines($content);
+        $charCount = $this->countChars($content);
 
         $metadata = [
             'handler' => $this->getHandlerName(),

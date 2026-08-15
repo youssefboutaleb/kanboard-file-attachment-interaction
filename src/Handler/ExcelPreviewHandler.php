@@ -15,7 +15,7 @@ use Kanboard\Plugin\FileInteractionCore\Service\ExcelParserService;
  * evaluated and macros are never executed: only cached cell values and shared
  * strings are read, then entity-escaped before reaching the template.
  */
-class ExcelPreviewHandler implements FileHandlerInterface
+class ExcelPreviewHandler extends AbstractPreviewHandler
 {
     /**
      * Extensions claimed by this handler.
@@ -47,15 +47,18 @@ class ExcelPreviewHandler implements FileHandlerInterface
 
     private ExcelParserService $parserService;
 
-    public function __construct(?ExcelParserService $parserService = null)
-    {
+    public function __construct(
+        ?ExcelParserService $parserService = null,
+        int $maxSizeBytes = self::DEFAULT_MAX_SIZE_BYTES
+    ) {
+        parent::__construct($maxSizeBytes);
         $this->parserService = $parserService ?? new ExcelParserService();
     }
 
     public function supports(string $extension, string $mimeType): bool
     {
-        $normalizedExt = strtolower(ltrim(trim($extension), '.'));
-        $normalizedMime = strtolower(trim($mimeType));
+        $normalizedExt = $this->normalizeExtension($extension);
+        $normalizedMime = $this->normalizeMimeType($mimeType);
 
         if (in_array($normalizedExt, self::SPREADSHEET_EXTENSIONS, true)) {
             return true;
@@ -82,7 +85,7 @@ class ExcelPreviewHandler implements FileHandlerInterface
      */
     public function preview(string $content, array $options = []): PreviewResult
     {
-        $extension = strtolower(ltrim(trim((string) ($options['extension'] ?? '')), '.'));
+        $extension = $this->normalizeExtension((string) ($options['extension'] ?? ''));
         $isLegacyFormat = in_array($extension, self::LEGACY_EXTENSIONS, true);
 
         // ExcelParserService guarantees the sheet shape, including an empty
@@ -95,7 +98,7 @@ class ExcelPreviewHandler implements FileHandlerInterface
         $activeSheet = '';
 
         foreach ($parseResult['sheets'] as $rawName => $sheet) {
-            $safeName = $this->escape((string) $rawName);
+            $safeName = $this->escapeHtml((string) $rawName);
 
             $truncated = $sheet['truncated'];
             $anyTruncated = $anyTruncated || $truncated;
@@ -149,14 +152,9 @@ class ExcelPreviewHandler implements FileHandlerInterface
     {
         return array_map(function (array $row): array {
             return array_map(function (string $cell): string {
-                return $this->escape($cell);
+                return $this->escapeHtml($cell);
             }, array_values($row));
         }, array_values($rows));
-    }
-
-    private function escape(string $value): string
-    {
-        return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     }
 }
 

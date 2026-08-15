@@ -11,13 +11,8 @@ use Kanboard\Plugin\FileInteractionCore\Service\MarkdownParserService;
 /**
  * Safe Markdown preview handler rendering .md and .markdown attachments as sanitized HTML.
  */
-class MarkdownPreviewHandler implements FileHandlerInterface
+class MarkdownPreviewHandler extends AbstractPreviewHandler
 {
-    /**
-     * Default maximum preview size limit in bytes (500 KB).
-     */
-    public const DEFAULT_MAX_SIZE_BYTES = 524288;
-
     /**
      * Supported Markdown file extensions.
      */
@@ -34,20 +29,18 @@ class MarkdownPreviewHandler implements FileHandlerInterface
 
     private MarkdownParserService $parserService;
 
-    private int $maxSizeBytes;
-
     public function __construct(
         ?MarkdownParserService $parserService = null,
         int $maxSizeBytes = self::DEFAULT_MAX_SIZE_BYTES
     ) {
+        parent::__construct($maxSizeBytes);
         $this->parserService = $parserService ?? new MarkdownParserService();
-        $this->maxSizeBytes = $maxSizeBytes;
     }
 
     public function supports(string $extension, string $mimeType): bool
     {
-        $normalizedExtension = strtolower(ltrim(trim($extension), '.'));
-        $normalizedMimeType = strtolower(trim($mimeType));
+        $normalizedExtension = $this->normalizeExtension($extension);
+        $normalizedMimeType = $this->normalizeMimeType($mimeType);
 
         if (in_array($normalizedExtension, self::ALLOWED_EXTENSIONS, true)) {
             return true;
@@ -61,26 +54,20 @@ class MarkdownPreviewHandler implements FileHandlerInterface
      */
     public function preview(string $content, array $options = []): PreviewResult
     {
-        $isTruncated = false;
-        $originalSize = strlen($content);
-
         // Enforce max preview size limit before parsing. A cut inside an open code
         // fence is safe: MarkdownParserService closes dangling fences on its own.
-        if ($originalSize > $this->maxSizeBytes) {
-            $content = substr($content, 0, $this->maxSizeBytes);
-            $isTruncated = true;
-        }
+        [$truncatedContent, $isTruncated, $originalSize] = $this->truncateContent($content);
 
-        $parseResult = $this->parserService->parse($content);
+        $parseResult = $this->parserService->parse($truncatedContent);
 
         $metadata = [
             'handler' => $this->getHandlerName(),
             'headingCount' => $parseResult['headingCount'],
             'lineCount' => $parseResult['lineCount'],
-            'charCount' => mb_strlen($content, 'UTF-8'),
+            'charCount' => $this->countChars($truncatedContent),
             'codeBlockCount' => $parseResult['codeBlockCount'],
             'originalSizeBytes' => $originalSize,
-            'previewSizeBytes' => strlen($content),
+            'previewSizeBytes' => strlen($truncatedContent),
             'truncated' => $isTruncated,
             'maxSizeBytes' => $this->maxSizeBytes,
         ];

@@ -10,29 +10,17 @@ use Kanboard\Plugin\FileInteractionCore\Core\Contract\PreviewResult;
 /**
  * Safe JSON preview handler with validation, pretty printing, and XSS escaping.
  */
-class JsonPreviewHandler implements FileHandlerInterface
+class JsonPreviewHandler extends AbstractPreviewHandler
 {
-    /**
-     * Default maximum preview size limit in bytes (500 KB).
-     */
-    public const DEFAULT_MAX_SIZE_BYTES = 524288;
-
     /**
      * Maximum JSON parsing depth to prevent stack exhaustion DoS.
      */
     private const MAX_PARSING_DEPTH = 512;
 
-    private int $maxSizeBytes;
-
-    public function __construct(int $maxSizeBytes = self::DEFAULT_MAX_SIZE_BYTES)
-    {
-        $this->maxSizeBytes = $maxSizeBytes;
-    }
-
     public function supports(string $extension, string $mimeType): bool
     {
-        $normalizedExtension = strtolower(ltrim(trim($extension), '.'));
-        $normalizedMimeType = strtolower(trim($mimeType));
+        $normalizedExtension = $this->normalizeExtension($extension);
+        $normalizedMimeType = $this->normalizeMimeType($mimeType);
 
         if ($normalizedExtension === 'json') {
             return true;
@@ -46,14 +34,8 @@ class JsonPreviewHandler implements FileHandlerInterface
      */
     public function preview(string $content, array $options = []): PreviewResult
     {
-        $isTruncated = false;
-        $originalSize = strlen($content);
-
         // Enforce maximum size limit before processing
-        if ($originalSize > $this->maxSizeBytes) {
-            $content = substr($content, 0, $this->maxSizeBytes);
-            $isTruncated = true;
-        }
+        [$truncatedContent, $isTruncated, $originalSize] = $this->truncateContent($content);
 
         $isValidJson = false;
         $errorMessage = null;
@@ -61,7 +43,7 @@ class JsonPreviewHandler implements FileHandlerInterface
 
         // Attempt JSON validation and pretty printing
         try {
-            $decoded = json_decode($content, true, self::MAX_PARSING_DEPTH, JSON_THROW_ON_ERROR);
+            $decoded = json_decode($truncatedContent, true, self::MAX_PARSING_DEPTH, JSON_THROW_ON_ERROR);
             $isValidJson = true;
             $formattedText = json_encode(
                 $decoded,
@@ -70,19 +52,19 @@ class JsonPreviewHandler implements FileHandlerInterface
             if ($formattedText === false) {
                 $isValidJson = false;
                 $errorMessage = 'Failed to format JSON payload.';
-                $formattedText = $content;
+                $formattedText = $truncatedContent;
             }
         } catch (\JsonException $e) {
             $isValidJson = false;
             $errorMessage = 'Invalid JSON: ' . $e->getMessage();
-            $formattedText = "[JSON Validation Error: " . $e->getMessage() . "]\n\n" . $content;
+            $formattedText = "[JSON Validation Error: " . $e->getMessage() . "]\n\n" . $truncatedContent;
         }
 
         // Strict HTML entity escaping to neutralize XSS payloads embedded inside JSON values
-        $safeContent = htmlspecialchars($formattedText, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $safeContent = $this->escapeHtml($formattedText);
 
-        $lineCount = empty($formattedText) ? 0 : substr_count($formattedText, "\n") + 1;
-        $charCount = mb_strlen($formattedText, 'UTF-8');
+        $lineCount = $this->countLines($formattedText);
+        $charCount = $this->countChars($formattedText);
 
         $metadata = [
             'handler' => $this->getHandlerName(),

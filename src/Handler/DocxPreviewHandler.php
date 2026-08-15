@@ -14,7 +14,7 @@ use Kanboard\Plugin\FileInteractionCore\Service\DocxParserService;
  * Parsing is delegated to DocxParserService (OpenXML/ZIP). Macros and active content
  * are never executed; all text runs and table contents are strictly HTML-escaped.
  */
-class DocxPreviewHandler implements FileHandlerInterface
+class DocxPreviewHandler extends AbstractPreviewHandler
 {
     private const DOCX_EXTENSIONS = ['docx', 'dotx', 'doc'];
 
@@ -32,15 +32,18 @@ class DocxPreviewHandler implements FileHandlerInterface
 
     private DocxParserService $parserService;
 
-    public function __construct(?DocxParserService $parserService = null)
-    {
+    public function __construct(
+        ?DocxParserService $parserService = null,
+        int $maxSizeBytes = self::DEFAULT_MAX_SIZE_BYTES
+    ) {
+        parent::__construct($maxSizeBytes);
         $this->parserService = $parserService ?? new DocxParserService();
     }
 
     public function supports(string $extension, string $mimeType): bool
     {
-        $normalizedExt = strtolower(ltrim(trim($extension), '.'));
-        $normalizedMime = strtolower(trim($mimeType));
+        $normalizedExt = $this->normalizeExtension($extension);
+        $normalizedMime = $this->normalizeMimeType($mimeType);
 
         if (in_array($normalizedExt, self::DOCX_EXTENSIONS, true)) {
             return true;
@@ -66,7 +69,7 @@ class DocxPreviewHandler implements FileHandlerInterface
      */
     public function preview(string $content, array $options = []): PreviewResult
     {
-        $extension = strtolower(ltrim(trim((string) ($options['extension'] ?? '')), '.'));
+        $extension = $this->normalizeExtension((string) ($options['extension'] ?? ''));
         $isLegacyFormat = in_array($extension, self::LEGACY_EXTENSIONS, true);
 
         if ($isLegacyFormat) {

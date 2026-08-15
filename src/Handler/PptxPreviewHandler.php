@@ -14,7 +14,7 @@ use Kanboard\Plugin\FileInteractionCore\Service\PptxParserService;
  * Parsing is delegated to PptxParserService (OpenXML/ZIP). Macros and active content
  * are never executed; all slide titles, bullet points, and tables are strictly HTML-escaped.
  */
-class PptxPreviewHandler implements FileHandlerInterface
+class PptxPreviewHandler extends AbstractPreviewHandler
 {
     private const PPTX_EXTENSIONS = ['pptx', 'potx', 'ppt'];
 
@@ -32,15 +32,18 @@ class PptxPreviewHandler implements FileHandlerInterface
 
     private PptxParserService $parserService;
 
-    public function __construct(?PptxParserService $parserService = null)
-    {
+    public function __construct(
+        ?PptxParserService $parserService = null,
+        int $maxSizeBytes = self::DEFAULT_MAX_SIZE_BYTES
+    ) {
+        parent::__construct($maxSizeBytes);
         $this->parserService = $parserService ?? new PptxParserService();
     }
 
     public function supports(string $extension, string $mimeType): bool
     {
-        $normalizedExt = strtolower(ltrim(trim($extension), '.'));
-        $normalizedMime = strtolower(trim($mimeType));
+        $normalizedExt = $this->normalizeExtension($extension);
+        $normalizedMime = $this->normalizeMimeType($mimeType);
 
         if (in_array($normalizedExt, self::PPTX_EXTENSIONS, true)) {
             return true;
@@ -66,7 +69,7 @@ class PptxPreviewHandler implements FileHandlerInterface
      */
     public function preview(string $content, array $options = []): PreviewResult
     {
-        $extension = strtolower(ltrim(trim((string) ($options['extension'] ?? '')), '.'));
+        $extension = $this->normalizeExtension((string) ($options['extension'] ?? ''));
         $isLegacyFormat = in_array($extension, self::LEGACY_EXTENSIONS, true);
 
         if ($isLegacyFormat) {

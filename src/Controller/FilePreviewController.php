@@ -10,6 +10,7 @@ if (!class_exists('Kanboard\Controller\BaseController')) {
 }
 
 use Kanboard\Controller\BaseController;
+use Kanboard\Plugin\FileInteractionCore\Controller\Concerns\HandlesAttachmentInteraction;
 use Kanboard\Plugin\FileInteractionCore\Core\Contract\FileContentFetcherInterface;
 use Kanboard\Plugin\FileInteractionCore\Core\Contract\FileHandlerInterface;
 use Kanboard\Plugin\FileInteractionCore\Core\FileInteractionManager;
@@ -40,6 +41,8 @@ use Kanboard\Plugin\FileInteractionCore\Service\SyntaxLanguageRegistry;
  */
 class FilePreviewController extends BaseController
 {
+    use HandlesAttachmentInteraction;
+
     /**
      * Absolute ceiling on bytes pulled into memory for a preview.
      *
@@ -109,21 +112,6 @@ class FilePreviewController extends BaseController
 
         $this->interactionManager = $interactionManager;
         $this->contentFetcher = $contentFetcher;
-    }
-
-    /**
-     * Determine whether a Kanboard container service is available.
-     *
-     * NOTE: `Kanboard\Core\Base` exposes services through `__get()` but does NOT
-     * implement `__isset()`. Therefore `isset($this->request)` is ALWAYS false at
-     * runtime and must never be used to detect the HTTP context. Probe the
-     * container directly instead.
-     */
-    private function hasService(string $name): bool
-    {
-        $container = $this->container;
-
-        return $container instanceof \ArrayAccess && (bool) $container->offsetExists($name);
     }
 
     /**
@@ -899,29 +887,16 @@ class FilePreviewController extends BaseController
     private function renderError(\Throwable $e, ?string $filename)
     {
         $isDenied = $e instanceof AccessDeniedException;
-        $errorData = [
-            'success' => false,
-            'filename' => $filename ?? '',
-            'reason' => $isDenied ? 'access_denied' : 'invalid_file',
-            'message' => $e->getMessage(),
-            'title' => t('Preview Error'),
-        ];
-
-        $isAjax = $this->hasService('request') && is_object($this->request) && method_exists($this->request, 'isAjax') && $this->request->isAjax();
-        $errorData['is_ajax'] = $isAjax;
         $statusCode = $isDenied ? 403 : 400;
+        $reason = $isDenied ? 'access_denied' : 'invalid_file';
 
-        $layout = $this->hasService('helper') ? ($this->helper->layout ?? null) : null;
-        if (!$isAjax && is_object($layout) && method_exists($layout, 'app')) {
-            return $this->response->html(
-                $layout->app('FileInteractionCore:file/preview_error', $errorData),
-                $statusCode
-            );
-        }
-
-        return $this->response->html(
-            $this->template->render('FileInteractionCore:file/preview_error', $errorData),
-            $statusCode
+        return $this->renderErrorModalResponse(
+            true,
+            $e->getMessage(),
+            $statusCode,
+            $reason,
+            null,
+            $filename
         );
     }
 }

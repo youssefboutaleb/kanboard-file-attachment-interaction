@@ -5,10 +5,25 @@ All notable changes to `kanboard-file-interaction-core` will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.0.0] - 2026-08-15
 
-### Planned - v1.0.0 (Final Production Hardening)
-- Production audit, final hardening & release v1.0.0.
+Production Architecture Refactoring, Visual Documentation & Open-Source Release.
+
+### Added
+- **`AbstractPreviewHandler`**: Centralized base class encapsulating size truncation, line counting, character counting, string normalization, and output escaping across all format strategies.
+- **`HandlesAttachmentInteraction` Trait**: Shared concern trait unifying container probing, attachment metadata lookup, project ID resolution, traversal-safe storage reads, layout rendering, and error modals across controllers.
+- **`CONTRIBUTING.md`**: Comprehensive open-source contributor guide with coding standards, architecture diagrams, step-by-step handler implementation guide, and testing workflows.
+- **Visual Technical Diagrams**:
+  - Security & Safety Model diagram in `README.md` and `docs/SECURITY.md` illustrating the multi-layer defense-in-depth architecture.
+  - System Component Architecture and Interaction Lifecycle Sequence diagrams in `docs/ARCHITECTURE.md`.
+- **GitHub Release & Open Source Documentation in `README.md`**: Complete feature breakdown, supported format table, step-by-step release archive installation, Git setup, and Docker testing.
+- **Strategic Next-Generation Roadmap in `docs/ROADMAP.md`**: Strategic evolution plan spanning v1.0.0 through v2.0.0 (visual revision diffs, full-text search, external office document servers).
+
+### Changed
+- Refactored all concrete handlers (`TextPreviewHandler`, `HtmlPreviewHandler`, `MarkdownPreviewHandler`, `JsonPreviewHandler`, `CodePreviewHandler`, `DocxPreviewHandler`, `PptxPreviewHandler`, `ExcelPreviewHandler`, `PdfPreviewHandler`, `CsvPreviewHandler`) to extend `AbstractPreviewHandler`.
+- Refactored `FilePreviewController`, `FileEditController`, and `FileStreamController` to use `HandlesAttachmentInteraction`.
+- Modernized `phpunit.xml` removing deprecated `verbose` attribute and migrating coverage nodes to PHPUnit 10 `<source>` schema.
+- Bumped plugin version to `1.0.0` in `Plugin.php`.
 
 ---
 

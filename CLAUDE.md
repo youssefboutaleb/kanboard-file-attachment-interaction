@@ -124,8 +124,21 @@ This document defines the agentic workflow, automated quality gates, git hooks, 
   - `Plugin.php` bumped to `0.9.0`; `dist/FileInteractionCore-0.9.0.zip` built.
   - 755 tests / 2562 assertions passing, PHPStan level 8 clean.
 
-### Milestone 10: Final Production Hardening & Release (PLANNED - v1.0.0)
-- [ ] **Task 48: Production Audit, Final Hardening & Release v1.0.0**
+### Milestone 10: Final Production Hardening, Architectural Refactoring & Release (100% RELEASED - v1.0.0)
+- [x] **Task 48: Architectural Refactoring & Code Cleanup**:
+  - Implemented `AbstractPreviewHandler` base class encapsulating size truncation, line counting, character counting, string normalization, and output escaping across all format strategies.
+  - Refactored all 10 concrete preview handlers (`TextPreviewHandler`, `HtmlPreviewHandler`, `MarkdownPreviewHandler`, `JsonPreviewHandler`, `CodePreviewHandler`, `DocxPreviewHandler`, `PptxPreviewHandler`, `ExcelPreviewHandler`, `PdfPreviewHandler`, `CsvPreviewHandler`) to extend `AbstractPreviewHandler`.
+  - Implemented `HandlesAttachmentInteraction` trait to consolidate container probing, attachment metadata lookup, project ID resolution, safe storage retrieval, layout wrapping, and error modal rendering across `FilePreviewController`, `FileEditController`, and `FileStreamController`.
+  - Modernized `phpunit.xml` removing deprecated `verbose` attribute and migrating coverage nodes to PHPUnit 10 `<source>` schema.
+- [x] **Task 49: Visual Documentation & Security Architecture**:
+  - Created comprehensive Mermaid Security & Safety Defense Model diagrams in `README.md` and `docs/SECURITY.md`.
+  - Created Mermaid System Component Architecture and Lifecycle Sequence diagrams in `docs/ARCHITECTURE.md`.
+  - Created `CONTRIBUTING.md` with complete open-source developer guidelines and step-by-step handler implementation guide.
+  - Overhauled `README.md` with full feature matrix, supported formats table, release installation instructions, and Docker testing commands.
+  - Updated `docs/ROADMAP.md` with strategic roadmap from v1.0.0 through v2.0.0.
+- [x] **Task 50: Verification, Packaging & Release v1.0.0**:
+  - Bumped plugin version to `1.0.0` in `Plugin.php` and `CHANGELOG.md`.
+  - Ran full verification pipeline (`bash scripts/agent-verify.sh`): PHP syntax OK, Composer configuration valid, PHPStan Level 8 passed with 0 errors, and all 751 tests passed with 0 warnings/deprecations.
 
 ---
 

@@ -10,13 +10,8 @@ use Kanboard\Plugin\FileInteractionCore\Core\Contract\PreviewResult;
 /**
  * Safe HTML preview handler rendering .html and .htm attachments in a sandboxed container.
  */
-class HtmlPreviewHandler implements FileHandlerInterface
+class HtmlPreviewHandler extends AbstractPreviewHandler
 {
-    /**
-     * Default maximum preview size limit in bytes (500 KB).
-     */
-    public const DEFAULT_MAX_SIZE_BYTES = 524288;
-
     /**
      * Supported HTML file extensions.
      */
@@ -27,17 +22,10 @@ class HtmlPreviewHandler implements FileHandlerInterface
      */
     private const ALLOWED_MIME_TYPES = ['text/html'];
 
-    private int $maxSizeBytes;
-
-    public function __construct(int $maxSizeBytes = self::DEFAULT_MAX_SIZE_BYTES)
-    {
-        $this->maxSizeBytes = $maxSizeBytes;
-    }
-
     public function supports(string $extension, string $mimeType): bool
     {
-        $normalizedExtension = strtolower(ltrim(trim($extension), '.'));
-        $normalizedMimeType = strtolower(trim($mimeType));
+        $normalizedExtension = $this->normalizeExtension($extension);
+        $normalizedMimeType = $this->normalizeMimeType($mimeType);
 
         if (in_array($normalizedExtension, self::ALLOWED_EXTENSIONS, true)) {
             return true;
@@ -51,27 +39,22 @@ class HtmlPreviewHandler implements FileHandlerInterface
      */
     public function preview(string $content, array $options = []): PreviewResult
     {
-        $isTruncated = false;
-        $originalSize = strlen($content);
+        [$truncatedContent, $isTruncated, $originalSize] = $this->truncateContent($content);
 
-        if ($originalSize > $this->maxSizeBytes) {
-            $content = substr($content, 0, $this->maxSizeBytes);
-            $isTruncated = true;
-        }
-
-        $lineCount = substr_count($content, "\n") + (strlen($content) > 0 ? 1 : 0);
+        $lineCount = $this->countLines($truncatedContent);
+        $charCount = $this->countChars($truncatedContent);
 
         $metadata = [
             'handler' => $this->getHandlerName(),
             'lineCount' => $lineCount,
-            'charCount' => mb_strlen($content, 'UTF-8'),
+            'charCount' => $charCount,
             'originalSizeBytes' => $originalSize,
-            'previewSizeBytes' => strlen($content),
+            'previewSizeBytes' => strlen($truncatedContent),
             'truncated' => $isTruncated,
             'maxSizeBytes' => $this->maxSizeBytes,
         ];
 
-        return new PreviewResult($content, true, $metadata);
+        return new PreviewResult($truncatedContent, true, $metadata);
     }
 
     public function getHandlerName(): string

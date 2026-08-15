@@ -12,23 +12,25 @@ use Kanboard\Plugin\FileInteractionCore\Service\CsvParserService;
 /**
  * Safe CSV read-only table preview handler supporting .csv and .tsv files.
  */
-class CsvPreviewHandler implements FileHandlerInterface
+class CsvPreviewHandler extends AbstractPreviewHandler
 {
     private CsvParserService $parserService;
     private CsvDelimiterRegistry $delimiterRegistry;
 
     public function __construct(
         ?CsvParserService $parserService = null,
-        ?CsvDelimiterRegistry $delimiterRegistry = null
+        ?CsvDelimiterRegistry $delimiterRegistry = null,
+        int $maxSizeBytes = self::DEFAULT_MAX_SIZE_BYTES
     ) {
+        parent::__construct($maxSizeBytes);
         $this->parserService = $parserService ?? new CsvParserService();
         $this->delimiterRegistry = $delimiterRegistry ?? new CsvDelimiterRegistry();
     }
 
     public function supports(string $extension, string $mimeType): bool
     {
-        $normalizedExt = strtolower(ltrim(trim($extension), '.'));
-        $normalizedMime = strtolower(trim($mimeType));
+        $normalizedExt = $this->normalizeExtension($extension);
+        $normalizedMime = $this->normalizeMimeType($mimeType);
 
         if (in_array($normalizedExt, ['csv', 'tsv'], true)) {
             return true;
@@ -58,7 +60,7 @@ class CsvPreviewHandler implements FileHandlerInterface
         // Escape every cell to guarantee XSS safety
         $escapedRows = array_map(function (array $row): array {
             return array_map(function (string $cell): string {
-                return htmlspecialchars($cell, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+                return $this->escapeHtml($cell);
             }, $row);
         }, $parseResult['rows']);
 

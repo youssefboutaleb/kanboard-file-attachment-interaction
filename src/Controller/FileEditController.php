@@ -5,6 +5,10 @@ declare(strict_types=1);
 namespace Kanboard\Plugin\FileInteractionCore\Controller;
 
 use Kanboard\Controller\BaseController;
+use Kanboard\Plugin\FileInteractionCore\Controller\Concerns\HandlesAttachmentInteraction;
+use Kanboard\Plugin\FileInteractionCore\Service\CsvParserService;
+use Kanboard\Plugin\FileInteractionCore\Service\ExcelParserService;
+use Kanboard\Plugin\FileInteractionCore\Service\ExcelWriterService;
 use Kanboard\Plugin\FileInteractionCore\Service\FileEditValidationService;
 use Kanboard\Plugin\FileInteractionCore\Service\FileVersionService;
 use Kanboard\Plugin\FileInteractionCore\Service\PermissionService;
@@ -23,9 +27,14 @@ use Kanboard\Plugin\FileInteractionCore\Service\PermissionService;
  */
 class FileEditController extends BaseController
 {
+    use HandlesAttachmentInteraction;
+
     private PermissionService $permissionService;
     private FileEditValidationService $editValidationService;
     private FileVersionService $versionService;
+    private ExcelParserService $excelParser;
+    private ExcelWriterService $excelWriter;
+    private CsvParserService $csvParser;
 
     /**
      * @param mixed $container
@@ -34,7 +43,10 @@ class FileEditController extends BaseController
         $container = null,
         ?PermissionService $permissionService = null,
         ?FileEditValidationService $editValidationService = null,
-        ?FileVersionService $versionService = null
+        ?FileVersionService $versionService = null,
+        ?ExcelParserService $excelParser = null,
+        ?ExcelWriterService $excelWriter = null,
+        ?CsvParserService $csvParser = null
     ) {
         if ($container !== null) {
             $this->container = $container;
@@ -43,17 +55,9 @@ class FileEditController extends BaseController
         $this->permissionService = $permissionService ?? new PermissionService();
         $this->editValidationService = $editValidationService ?? new FileEditValidationService();
         $this->versionService = $versionService ?? new FileVersionService();
-    }
-
-    /**
-     * Helper to safely check DIC service availability without throwing.
-     */
-    private function hasService(string $serviceName): bool
-    {
-        return isset($this->container)
-            && is_object($this->container)
-            && method_exists($this->container, 'offsetExists')
-            && $this->container->offsetExists($serviceName);
+        $this->excelParser = $excelParser ?? new ExcelParserService(1000, 100);
+        $this->excelWriter = $excelWriter ?? new ExcelWriterService();
+        $this->csvParser = $csvParser ?? new CsvParserService();
     }
 
     /**
@@ -103,34 +107,24 @@ class FileEditController extends BaseController
         $contentToEdit = $rawContent;
 
         if (in_array($normalizedExt, ['xlsx', 'xls'], true)) {
-            $excelParser = new \Kanboard\Plugin\FileInteractionCore\Service\ExcelParserService(1000, 100);
-            $parsed = $excelParser->parseXlsxContent($rawContent);
+            $parsed = $this->excelParser->parseXlsxContent($rawContent);
             $sheets = $parsed['sheets'];
             $sheetNames = $parsed['sheetNames'];
-
-            $excelWriter = new \Kanboard\Plugin\FileInteractionCore\Service\ExcelWriterService();
-            $contentToEdit = $excelWriter->xlsxToCsv($rawContent);
+            $contentToEdit = $this->excelWriter->xlsxToCsv($rawContent);
         } elseif (in_array($normalizedExt, ['csv', 'tsv'], true)) {
             $delimiter = $normalizedExt === 'tsv' ? "\t" : ',';
-            $rows = [];
-            if (trim($rawContent) === '') {
+            $parsed = $this->csvParser->parse($rawContent, $delimiter);
+            $rows = $parsed['rows'];
+            if (empty($rows)) {
                 $rows = [['']];
-            } else {
-                $lines = explode("\n", $rawContent);
-                foreach ($lines as $line) {
-                    if ($line === '' && count($rows) > 0 && end($lines) === $line) {
-                        continue;
-                    }
-                    $csvRow = str_getcsv($line, $delimiter);
-                    $sanitized = [];
-                    foreach ($csvRow as $cell) {
-                        $sanitized[] = (string) $cell;
-                    }
-                    $rows[] = $sanitized;
-                }
             }
             $sheetNames = ['Sheet1'];
-            $sheets = ['Sheet1' => ['rows' => $rows, 'rowCount' => count($rows), 'columnCount' => count($rows[0] ?? []), 'truncated' => false]];
+            $sheets = ['Sheet1' => [
+                'rows' => $rows,
+                'rowCount' => count($rows),
+                'columnCount' => count($rows[0] ?? []),
+                'truncated' => $parsed['truncatedRows'] || $parsed['truncatedColumns'],
+            ]];
         }
 
         $responseData = [
@@ -147,20 +141,8 @@ class FileEditController extends BaseController
         ];
 
         if ($canRender) {
-            $isAjax = $this->hasService('request') && is_object($this->request) && method_exists($this->request, 'isAjax') && $this->request->isAjax();
-            $responseData['is_ajax'] = $isAjax;
-            $responseData['title'] = function_exists('t') ? t('Edit %s', $filename) : "Edit {$filename}";
-
-            $layout = $this->hasService('helper') ? ($this->helper->layout ?? null) : null;
-            if (!$isAjax && is_object($layout) && method_exists($layout, 'app')) {
-                return $this->response->html(
-                    $layout->app('FileInteractionCore:file/edit', $responseData)
-                );
-            }
-
-            return $this->response->html(
-                $this->template->render('FileInteractionCore:file/edit', $responseData)
-            );
+            $title = function_exists('t') ? t('Edit %s', $filename) : "Edit {$filename}";
+            return $this->renderTemplateOrLayout('FileInteractionCore:file/edit', $responseData, $title);
         }
 
         return $responseData;
@@ -269,18 +251,17 @@ class FileEditController extends BaseController
         }
 
         $contentToSave = $newContent;
-        $excelWriter = new \Kanboard\Plugin\FileInteractionCore\Service\ExcelWriterService();
 
         if (in_array($normalizedExt, ['xlsx', 'xls'], true)) {
             if ($gridDataRaw !== '') {
                 $gridData = @json_decode($gridDataRaw, true);
                 if (is_array($gridData) && !empty($gridData)) {
-                    $contentToSave = $excelWriter->buildXlsxFromMultiSheet($gridData);
+                    $contentToSave = $this->excelWriter->buildXlsxFromMultiSheet($gridData);
                 } else {
-                    $contentToSave = $excelWriter->csvToXlsx($newContent);
+                    $contentToSave = $this->excelWriter->csvToXlsx($newContent);
                 }
             } else {
-                $contentToSave = $excelWriter->csvToXlsx($newContent);
+                $contentToSave = $this->excelWriter->csvToXlsx($newContent);
             }
         } elseif (in_array($normalizedExt, ['csv', 'tsv'], true) && $gridDataRaw !== '') {
             $gridData = @json_decode($gridDataRaw, true);
@@ -366,31 +347,13 @@ class FileEditController extends BaseController
      */
     private function renderErrorModal(bool $canRender, string $message, int $statusCode, string $reason, ?int $errorLine = null)
     {
-        $errorData = [
-            'success' => false,
-            'message' => $message,
-            'reason' => $reason,
-            'errorLine' => $errorLine,
-            'title' => function_exists('t') ? t('Error') : 'Error',
-        ];
-
-        if ($canRender) {
-            $isAjax = $this->hasService('request') && is_object($this->request) && method_exists($this->request, 'isAjax') && $this->request->isAjax();
-            $layout = $this->hasService('helper') ? ($this->helper->layout ?? null) : null;
-            if (!$isAjax && is_object($layout) && method_exists($layout, 'app')) {
-                return $this->response->html(
-                    $layout->app('FileInteractionCore:file/preview_error', $errorData),
-                    $statusCode
-                );
-            }
-
-            return $this->response->html(
-                $this->template->render('FileInteractionCore:file/preview_error', $errorData),
-                $statusCode
-            );
-        }
-
-        return array_merge(['statusCode' => $statusCode], $errorData);
+        return $this->renderErrorModalResponse(
+            $canRender,
+            $message,
+            $statusCode,
+            $reason,
+            $errorLine
+        );
     }
 }
 

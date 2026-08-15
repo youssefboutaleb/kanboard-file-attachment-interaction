@@ -10,12 +10,12 @@ use Kanboard\Plugin\FileInteractionCore\Core\Contract\PreviewResult;
 /**
  * Safe PDF embedded read-only preview handler supporting .pdf files.
  */
-class PdfPreviewHandler implements FileHandlerInterface
+class PdfPreviewHandler extends AbstractPreviewHandler
 {
     public function supports(string $extension, string $mimeType): bool
     {
-        $normalizedExt = strtolower(ltrim(trim($extension), '.'));
-        $normalizedMime = strtolower(trim($mimeType));
+        $normalizedExt = $this->normalizeExtension($extension);
+        $normalizedMime = $this->normalizeMimeType($mimeType);
 
         if ($normalizedExt === 'pdf') {
             return true;
