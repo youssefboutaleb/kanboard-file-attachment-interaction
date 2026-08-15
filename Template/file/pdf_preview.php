@@ -2,9 +2,6 @@
     <h2>
         <i class="fa fa-file-pdf-o" style="color: #d9534f;"></i>
         <?= $this->text->e($filename) ?>
-        <span class="badge" style="font-size: 0.8em; margin-left: 10px; background: #d9534f; color: #fff; padding: 2px 8px; border-radius: 4px;">
-            <?= $this->text->e($handler) ?>
-        </span>
         <?php if (!empty($metadata['sizeBytes'])): ?>
             <span class="badge" style="font-size: 0.8em; margin-left: 5px; background: #6c757d; color: #fff; padding: 2px 8px; border-radius: 4px;">
                 <?= $this->text->bytes($metadata['sizeBytes']) ?>
@@ -21,13 +18,14 @@ $downloadParams = [
 if ($projectId > 0) {
     $downloadParams['project_id'] = $projectId;
 }
-// Two distinct core actions are required here:
-//   - browser:  streams the file with Content-Type: application/pdf and NO
-//               attachment disposition, so <object> can render it inline.
-//   - download: streams with Content-Disposition: attachment (save dialog).
-// Using `download` for the <object> would make every browser show a save
-// prompt instead of the embedded viewer.
-$inlineUrl = $this->url->href('FileViewerController', 'browser', $downloadParams);
+
+$streamParams = [
+    'plugin' => 'FileInteractionCore',
+    'project_id' => $projectId,
+    'task_id' => $taskId,
+    'file_id' => $fileId,
+];
+$inlineUrl = $this->url->href('FileStreamController', 'inline', $streamParams);
 $downloadUrl = $this->url->href('FileViewerController', 'download', $downloadParams);
 ?>
 
@@ -44,13 +42,18 @@ $downloadUrl = $this->url->href('FileViewerController', 'download', $downloadPar
     </object>
 </div>
 
-<div class="panel-meta" style="font-size: 0.85em; color: #6a737d; display: flex; justify-content: space-between; margin-top: 5px;">
-    <span>
-        <i class="fa fa-info-circle"></i> <?= t('PDF Reader Modal') ?>
-    </span>
-    <span>
-        <a href="<?= $downloadUrl ?>" target="_blank" rel="noopener noreferrer" style="color: #0366d6; text-decoration: none;">
-            <i class="fa fa-external-link"></i> <?= t('Open Fullscreen / Download') ?>
-        </a>
-    </span>
-</div>
+<?= $this->render('FileInteractionCore:file/modal_actions', [
+    'typeLabel' => $typeLabel ?? 'PDF Document',
+    'metaSummary' => t('Inline viewer'),
+    'isEditableFormat' => false,
+    'editParams' => [],
+    'taskId' => $taskId ?? 0,
+    'projectId' => $projectId ?? 0,
+    'fileId' => $fileId ?? 0,
+    'showEditSwitcher' => false,
+    'rawViewAvailable' => false,
+    'viewMode' => $viewMode ?? 'rendered',
+    'viewToggleParams' => $viewToggleParams ?? [],
+    'openTabUrl' => $inlineUrl,
+    'is_ajax' => $is_ajax ?? true,
+]) ?>

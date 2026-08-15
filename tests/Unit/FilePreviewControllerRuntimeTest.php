@@ -115,7 +115,7 @@ class FilePreviewControllerRuntimeTest extends TestCase
         $this->assertStringContainsString('hello from object storage', (string) $template->renderedVars['content']);
     }
 
-    public function testEscapesHtmlAttachmentContentInRuntimeContext(): void
+    public function testRendersSandboxedHtmlPreviewForHtmlAttachment(): void
     {
         $template = new FakeTemplate();
         $response = new FakeResponse();
@@ -131,21 +131,65 @@ class FilePreviewControllerRuntimeTest extends TestCase
         $controller = new FilePreviewController($container, new PermissionService(new MockPermissionChecker(true)));
         $controller->show();
 
-        $content = (string) $template->renderedVars['content'];
+        $this->assertSame('FileInteractionCore:file/html_preview', $template->renderedTemplate);
+        $this->assertSame('HtmlPreviewHandler', $template->renderedVars['handler']);
 
-        $this->assertStringNotContainsString('<script>', $content);
-        $this->assertStringContainsString('&lt;script&gt;', $content);
+        // In raw view mode, code syntax highlighter escapes content
+        $rawContainer = $this->buildContainer(
+            ['file_id' => 2, 'task_id' => 1, 'project_id' => 1, 'view' => 'raw'],
+            ['name' => 'page.html', 'path' => 'tasks/1/xss', 'task_id' => 1],
+            '<script>alert("xss")</script>',
+            $template,
+            $response
+        );
+        $rawController = new FilePreviewController($rawContainer, new PermissionService(new MockPermissionChecker(true)));
+        $rawController->show();
+
+        $this->assertSame('FileInteractionCore:file/markdown_preview', $template->renderedTemplate);
+        $this->assertSame('CodePreviewHandler', $template->renderedVars['handler']);
+        $rawContent = (string) $template->renderedVars['content'];
+        $this->assertStringNotContainsString('<script>', $rawContent);
+        $this->assertStringContainsString('&lt;script&gt;', $rawContent);
     }
 
-    public function testRendersErrorModalInsteadOfThrowingForDisallowedExtension(): void
+    /**
+     * Task 36: an unrecognised extension no longer produces an error modal — it is
+     * content-inspected. A real binary payload answers with the download notice.
+     */
+    public function testRendersBinaryNoticeForUnrecognisedBinaryAttachment(): void
     {
         $template = new FakeTemplate();
         $response = new FakeResponse();
 
         $container = $this->buildContainer(
             ['file_id' => 3, 'task_id' => 1, 'project_id' => 1],
-            ['name' => 'payload.docx', 'path' => 'tasks/1/doc', 'task_id' => 1],
-            'binary',
+            ['name' => 'payload.bin', 'path' => 'tasks/1/bin', 'task_id' => 1],
+            "PK\x03\x04\x00\x00binary\x00payload",
+            $template,
+            $response
+        );
+
+        $controller = new FilePreviewController($container, new PermissionService(new MockPermissionChecker(true)));
+        $controller->show();
+
+        $this->assertSame('FileInteractionCore:file/binary_notice', $template->renderedTemplate);
+        $this->assertSame(200, $response->statusCode);
+        $this->assertTrue($template->renderedVars['metadata']['isBinary']);
+        $this->assertSame('', $template->renderedVars['content']);
+    }
+
+    /**
+     * Media formats core owns still degrade to the escaped error modal.
+     */
+    public function testRendersErrorModalForCoreOwnedMediaExtension(): void
+    {
+        $template = new FakeTemplate();
+        $response = new FakeResponse();
+
+        $container = $this->buildContainer(
+            ['file_id' => 4, 'task_id' => 1, 'project_id' => 1],
+            ['name' => 'logo.svg', 'path' => 'tasks/1/svg', 'task_id' => 1],
+            '<svg onload="alert(1)"></svg>',
             $template,
             $response
         );

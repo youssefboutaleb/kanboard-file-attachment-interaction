@@ -38,7 +38,7 @@ class FileValidationServiceTest extends TestCase
     {
         // NOTE: .php/.js/.sh became previewable in Milestone 3 (spec 003) and are
         // asserted separately in testValidateExtensionAcceptsSourceCodeExtensions.
-        $disallowed = ['logo.svg', 'binary.exe', 'report.docx', 'archive.zip', 'library.dll'];
+        $disallowed = ['logo.svg', 'binary.exe', 'firmware.bin', 'archive.zip', 'library.dll'];
 
         foreach ($disallowed as $filename) {
             try {
@@ -186,7 +186,7 @@ class FileValidationServiceTest extends TestCase
     {
         // Binary document formats are strictly typed: text/plain is NOT a valid
         // MIME type for them and is asserted to be rejected separately below.
-        $binaryExtensions = ['pdf', 'xlsx', 'xls'];
+        $binaryExtensions = ['pdf', 'xlsx', 'xls', 'docx', 'dotx', 'doc', 'pptx', 'potx', 'ppt'];
 
         foreach (FileValidationService::ALLOWED_EXTENSIONS as $extension) {
             if (in_array($extension, $binaryExtensions, true)) {
@@ -322,5 +322,35 @@ class FileValidationServiceTest extends TestCase
 
         $this->expectException(InvalidFileException::class);
         $strictService->validateFileSize(2048, 'pdf');
+    }
+
+    public function testValidateExtensionAcceptsDocxAndPptx(): void
+    {
+        $this->assertSame('docx', $this->service->validateExtension('report.docx'));
+        $this->assertSame('dotx', $this->service->validateExtension('template.dotx'));
+        $this->assertSame('doc', $this->service->validateExtension('legacy.doc'));
+        $this->assertSame('pptx', $this->service->validateExtension('presentation.pptx'));
+        $this->assertSame('potx', $this->service->validateExtension('template.potx'));
+        $this->assertSame('ppt', $this->service->validateExtension('legacy.ppt'));
+    }
+
+    public function testValidateFileSizeAcceptsUpTo10MbForDocx(): void
+    {
+        $tenMb = FileValidationService::DOCX_MAX_SIZE_BYTES;
+        $this->service->validateFileSize($tenMb, 'docx');
+        $this->service->validateFileSize($tenMb, 'doc');
+
+        $this->expectException(InvalidFileException::class);
+        $this->service->validateFileSize($tenMb + 1, 'docx');
+    }
+
+    public function testValidateFileSizeAcceptsUpTo15MbForPptx(): void
+    {
+        $fifteenMb = FileValidationService::PPTX_MAX_SIZE_BYTES;
+        $this->service->validateFileSize($fifteenMb, 'pptx');
+        $this->service->validateFileSize($fifteenMb, 'ppt');
+
+        $this->expectException(InvalidFileException::class);
+        $this->service->validateFileSize($fifteenMb + 1, 'pptx');
     }
 }

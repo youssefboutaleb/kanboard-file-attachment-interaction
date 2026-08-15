@@ -95,3 +95,4 @@ class MarkdownPreviewHandler implements FileHandlerInterface
         return 'MarkdownPreviewHandler';
     }
 }
+

@@ -17,6 +17,9 @@ namespace Kanboard\Controller;
  * @property mixed $projectFileModel
  * @property mixed $taskFinderModel
  * @property mixed $objectStorage
+ * @property mixed $token
+ * @property mixed $helper
+ * @property mixed $flash
  */
 abstract class BaseController
 {
@@ -44,4 +47,17 @@ abstract class BaseController
 
         return null;
     }
+
+    public function checkCSRFParam(): bool
+    {
+        if ($this->container instanceof \ArrayAccess && $this->container->offsetExists('token')) {
+            $token = $this->container['token'];
+            if (is_object($token) && method_exists($token, 'validateCSRFToken')) {
+                return (bool) $token->validateCSRFToken();
+            }
+        }
+
+        return true;
+    }
 }
+

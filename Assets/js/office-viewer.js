@@ -138,20 +138,30 @@
                         renderTarget.innerHTML = '';
                         var slideWrapper = document.createElement('div');
                         slideWrapper.className = 'fic-pptx-slide-canvas-wrapper';
-                        slideWrapper.style.boxShadow = '0 4px 16px rgba(0,0,0,0.35)';
+                        slideWrapper.style.boxShadow = '0 4px 20px rgba(0,0,0,0.35)';
                         slideWrapper.style.borderRadius = '4px';
                         slideWrapper.style.overflow = 'hidden';
-                        slideWrapper.style.display = 'inline-block';
+                        slideWrapper.style.display = 'flex';
+                        slideWrapper.style.justifyContent = 'center';
+                        slideWrapper.style.alignItems = 'center';
+                        slideWrapper.style.maxWidth = '100%';
                         slideWrapper.style.background = '#fff';
                         renderTarget.appendChild(slideWrapper);
 
                         var viewerLib = window.PPTXViewer || window.pptxViewer;
                         if (viewerLib && typeof viewerLib.renderSlideToElement === 'function') {
                             try {
-                                var targetWidth = Math.min(920, Math.max(380, container.clientWidth - 40));
+                                var containerW = container.clientWidth || container.offsetWidth || 800;
+                                var targetWidth = Math.min(1080, Math.max(380, containerW - 32));
                                 viewerLib.renderSlideToElement(presentation, currentSlideIndex, slideWrapper, {
                                     width: targetWidth
                                 });
+                                var renderedSvg = slideWrapper.querySelector('svg');
+                                if (renderedSvg) {
+                                    renderedSvg.style.maxWidth = '100%';
+                                    renderedSvg.style.height = 'auto';
+                                    renderedSvg.style.display = 'block';
+                                }
                             } catch (renderErr) {
                                 console.warn('Error rendering vector slide:', renderErr);
                             }

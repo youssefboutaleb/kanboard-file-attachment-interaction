@@ -1,36 +1,31 @@
 <?php
 /**
- * Rich HTML preview modal shared by MarkdownPreviewHandler and CodePreviewHandler.
+ * Safe markdown preview template (spec 003).
  *
- * SECURITY: $content is emitted RAW and must never be wrapped in $this->text->e().
- * Both handlers return pre-sanitized HTML — MarkdownParserService entity-escapes
- * every text node and filters link schemes to http/https/mailto, while
- * CodePreviewHandler htmlspecialchars() the entire payload before adding token
- * spans. Escaping again here would display literal markup to the user.
- * Every OTHER variable below is untrusted and stays escaped.
+ * Expects: $content (pre-rendered/pre-escaped HTML), $filename, $extension,
+ * $taskId, $fileId, $projectId, $metadata (array with headingCount, codeBlockCount, etc.)
  */
-$isCodeView = ($handler ?? '') === 'CodePreviewHandler';
-$language = (string) ($metadata['language'] ?? '');
+$isCodeView = !empty($isCodeView) || ($handler ?? "") === "CodePreviewHandler";
+$language = (string) ($metadata["language"] ?? "");
 ?>
 <div class="page-header">
     <h2>
-        <i class="fa <?= $isCodeView ? 'fa-code' : 'fa-file-text-o' ?>"></i>
+        <i class="fa <?= $isCodeView ? "fa-code" : "fa-file-text-o" ?>"></i>
         <?= $this->text->e($filename) ?>
-        <span class="badge" style="font-size: 0.8em; margin-left: 10px; background: #2b579a; color: #fff; padding: 2px 8px; border-radius: 4px;">
-            <?= $this->text->e($handler) ?>
-        </span>
-        <?php if ($isCodeView && $language !== ''): ?>
-            <span class="badge" style="font-size: 0.8em; margin-left: 5px; background: #6c757d; color: #fff; padding: 2px 8px; border-radius: 4px;">
-                <?= $this->text->e(strtoupper($language)) ?>
-            </span>
+        <?php if (!empty($languageSelectorEnabled)): ?>
+            <?= $this->render('FileInteractionCore:file/language_selector', [
+                'languageOptions' => $languageOptions ?? [],
+                'selectedLanguage' => $selectedLanguage ?? '',
+                'languageParams' => $languageParams ?? [],
+            ]) ?>
         <?php endif; ?>
     </h2>
 </div>
 
-<?php if (!empty($metadata['truncated'])): ?>
+<?php if (!empty($metadata["truncated"])): ?>
     <div class="alert alert-warning" style="margin-bottom: 15px; padding: 8px 12px; background: #fff3cd; color: #856404; border: 1px solid #ffeeba; border-radius: 4px;">
         <i class="fa fa-exclamation-triangle"></i>
-        <?= t('File content exceeds maximum preview size limit (%d KB) and has been truncated.', round(((int) ($metadata['maxSizeBytes'] ?? 0)) / 1024)) ?>
+        <?= t("File content exceeds maximum preview size limit (%d KB) and has been truncated.", (int) round(((int) ($metadata["maxSizeBytes"] ?? 0)) / 1024)) ?>
     </div>
 <?php endif; ?>
 
@@ -65,32 +60,30 @@ $language = (string) ($metadata['language'] ?? '');
         .markdown-body th, .markdown-body td { border: 1px solid #dfe2e5; padding: 6px 10px; }
     </style>
 
-    <?php if (trim((string) $content) === ''): ?>
+    <?php if (trim((string) $content) === ""): ?>
         <div style="padding: 20px; text-align: center; color: #6c757d;">
             <i class="fa fa-info-circle"></i>
-            <?= $isCodeView ? t('The source file is empty.') : t('The Markdown document is empty.') ?>
+            <?= $isCodeView ? t("The source file is empty.") : t("The Markdown document is empty.") ?>
         </div>
     <?php else: ?>
         <?= $content ?>
     <?php endif; ?>
 </div>
 
-<div class="panel-meta" style="margin-top: 10px; font-size: 0.85em; color: #6a737d; display: flex; justify-content: space-between;">
-    <span>
-        <?php if ($isCodeView): ?>
-            <i class="fa fa-align-left"></i> <?= t('%d Lines', (int) ($metadata['lineCount'] ?? 0)) ?>
-            &nbsp;|&nbsp;
-            <i class="fa fa-font"></i> <?= t('%d Characters', (int) ($metadata['charCount'] ?? 0)) ?>
-        <?php else: ?>
-            <i class="fa fa-header"></i> <?= t('%d Headings', (int) ($metadata['headingCount'] ?? 0)) ?>
-            &nbsp;|&nbsp;
-            <i class="fa fa-code"></i> <?= t('%d Code Blocks', (int) ($metadata['codeBlockCount'] ?? 0)) ?>
-            &nbsp;|&nbsp;
-            <i class="fa fa-align-left"></i> <?= t('%d Lines', (int) ($metadata['lineCount'] ?? 0)) ?>
-        <?php endif; ?>
-    </span>
-    <span>
-        <i class="fa fa-shield"></i>
-        <?= $isCodeView ? t('Safe Read-Only Syntax Highlighted View') : t('Safe Sanitized Markdown View') ?>
-    </span>
-</div>
+<?= $this->render("FileInteractionCore:file/modal_actions", [
+    "typeLabel" => $typeLabel ?? ($isCodeView ? "Code" : "Markdown"),
+    "metaSummary" => $isCodeView
+        ? t("%d Lines", (int) ($metadata["lineCount"] ?? 0))
+        : t("%d Headings", (int) ($metadata["headingCount"] ?? 0)),
+    "isEditableFormat" => $isEditableFormat ?? false,
+    "editParams" => $editParams ?? [],
+    "taskId" => $taskId ?? 0,
+    "projectId" => $projectId ?? 0,
+    "fileId" => $fileId ?? 0,
+    "showEditSwitcher" => true,
+    "rawViewAvailable" => $rawViewAvailable ?? false,
+    "viewMode" => $viewMode ?? "rendered",
+    "viewToggleParams" => $viewToggleParams ?? [],
+    "openTabUrl" => $openTabUrl ?? null,
+    "is_ajax" => $is_ajax ?? true,
+]) ?>

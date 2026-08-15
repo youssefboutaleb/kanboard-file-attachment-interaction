@@ -36,6 +36,8 @@ rsync -av --exclude='.git*' \
           --exclude='.githooks' \
           --exclude='docker-compose.yml' \
           --exclude='vendor' \
+          --exclude='node_modules' \
+          --exclude='package*.json' \
           --exclude='tests' \
           --exclude='dist' \
           --exclude='scripts' \
@@ -50,3 +52,4 @@ mv "${STAGE_DIR}/${PLUGIN_NAME}-${VERSION}.zip" "${ARCHIVE_NAME}"
 rm -rf "${STAGE_DIR}"
 
 echo "✔ Plugin package created successfully: ${ARCHIVE_NAME}"
+

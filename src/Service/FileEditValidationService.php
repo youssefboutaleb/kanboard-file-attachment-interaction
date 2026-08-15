@@ -20,8 +20,11 @@ class FileEditValidationService
      */
     public const EDITABLE_EXTENSIONS = [
         'txt', 'json', 'md', 'markdown',
-        'yml', 'yaml',
-        'sh', 'py', 'js', 'css', 'sql',
+        'env', 'ini', 'conf', 'log',
+        'yml', 'yaml', 'xml',
+        'sh', 'bash', 'py', 'python', 'js', 'css', 'sql',
+        'html', 'htm',
+        'csv', 'tsv', 'xlsx', 'xls',
     ];
 
     /**

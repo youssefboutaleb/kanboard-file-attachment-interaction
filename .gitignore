@@ -1,5 +1,6 @@
 /vendor/
 /node_modules/
+/node_modules/
 .phpunit.result.cache
 .DS_Store
 *.log
@@ -7,3 +8,4 @@
 # Build artifacts — release archives are published as GitHub Release assets
 # (see .github/workflows/release.yml), never committed to the repository.
 dist/
+

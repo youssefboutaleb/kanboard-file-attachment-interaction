@@ -17,23 +17,52 @@ class FileValidationService
 
     public const EXCEL_MAX_SIZE_BYTES = 5242880; // 5 MB (spec 006)
 
+    public const DOCX_MAX_SIZE_BYTES = 10485760; // 10 MB
+
+    public const PPTX_MAX_SIZE_BYTES = 15728640; // 15 MB
+
     /**
      * Allowed file extensions (Milestone 1 text/JSON, Milestone 2 tabular, Milestone 3 markdown/code,
-     * Milestone 4 PDF, Milestone 6 Excel).
+     * Milestone 4 PDF, Milestone 6 Excel, Milestone 9 Word & PowerPoint).
      *
      * NOTE: script-typed source extensions (php, js, sh, bash, py) are previewable
      * but NEVER executed: CodePreviewHandler entity-escapes the whole payload with
      * htmlspecialchars() before applying syntax highlighting spans.
      *
-     * NOTE: pdf is a binary document format. It is never parsed or executed by this
-     * plugin; the payload is streamed into a sandboxed viewer container so any
-     * embedded JavaScript or macro stays inert.
+     * NOTE: pdf, docx, pptx are binary document formats. They are parsed or streamed in
+     * memory-safe sandboxes so any embedded JavaScript or macro stays inert.
      */
     public const ALLOWED_EXTENSIONS = [
         'txt', 'json', 'md', 'env', 'ini', 'conf', 'yaml', 'yml', 'xml', 'log', 'html', 'htm',
         'csv', 'tsv',
-        'markdown', 'sh', 'bash', 'py', 'php', 'js', 'css', 'sql',
-        'pdf', 'xlsx', 'xls'
+        'markdown', 'sh', 'bash', 'py', 'python', 'php', 'js', 'css', 'sql',
+        'pdf', 'xlsx', 'xls',
+        'docx', 'dotx', 'doc',
+        'pptx', 'potx', 'ppt'
+    ];
+
+    /**
+     * Media formats Kanboard core previews itself, which this plugin must not claim.
+     *
+     * These are excluded from the Task 36 unknown-extension content inspection for
+     * two reasons:
+     *   1. They are not "unknown" in the UI — core already renders a working image,
+     *      audio or video viewer, so shadowing it with a "binary, download instead"
+     *      notice would be a downgrade.
+     *   2. `svg` is active content. Escaped-text rendering would be safe in itself,
+     *      but keeping the format rejected outright means no URL can route an SVG
+     *      into a preview path at all.
+     *
+     * Task 35's dropdown scoping depends on this list staying aligned with core's
+     * `FileHelper::getBrowserViewType()` plus its image extensions.
+     */
+    public const CORE_MEDIA_EXTENSIONS = [
+        // Images
+        'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'ico', 'tiff', 'tif', 'svg',
+        // Audio
+        'mp3', 'ogg', 'flac', 'wav', 'wma', 'm4a', 'aac', 'opus', 'amr', 'midi', 'mid',
+        // Video
+        'mp4', 'avi', 'mov', 'mkv', 'webm', 'm4v', 'wmv', 'flv', 'mpg', 'mpeg', '3gp',
     ];
 
     /**
@@ -48,6 +77,12 @@ class FileValidationService
         'pdf' => self::PDF_MAX_SIZE_BYTES,
         'xlsx' => self::EXCEL_MAX_SIZE_BYTES,
         'xls' => self::EXCEL_MAX_SIZE_BYTES,
+        'docx' => self::DOCX_MAX_SIZE_BYTES,
+        'dotx' => self::DOCX_MAX_SIZE_BYTES,
+        'doc' => self::DOCX_MAX_SIZE_BYTES,
+        'pptx' => self::PPTX_MAX_SIZE_BYTES,
+        'potx' => self::PPTX_MAX_SIZE_BYTES,
+        'ppt' => self::PPTX_MAX_SIZE_BYTES,
     ];
 
     /**
@@ -76,6 +111,7 @@ class FileValidationService
         'sh'   => ['text/plain', 'text/x-sh', 'application/x-sh', 'application/x-shellscript', 'text/x-shellscript'],
         'bash' => ['text/plain', 'text/x-sh', 'application/x-sh', 'application/x-shellscript', 'text/x-shellscript'],
         'py'   => ['text/x-python', 'text/x-script.python', 'text/plain'],
+        'python' => ['text/x-python', 'text/x-script.python', 'text/plain'],
         'php'  => ['text/x-php', 'application/x-httpd-php', 'text/plain'],
         'js'   => ['application/javascript', 'text/javascript', 'text/plain'],
         'css'  => ['text/css', 'text/plain'],
@@ -86,6 +122,12 @@ class FileValidationService
         'pdf'  => ['application/pdf', 'application/x-pdf', 'application/octet-stream'],
         'xlsx' => ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/zip', 'application/octet-stream'],
         'xls'  => ['application/vnd.ms-excel', 'application/msexcel', 'application/x-msexcel', 'application/x-ms-excel', 'application/x-excel', 'application/x-dos_ms_excel', 'application/xls', 'application/x-xls', 'application/octet-stream'],
+        'docx' => ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/zip', 'application/octet-stream', 'application/msword'],
+        'dotx' => ['application/vnd.openxmlformats-officedocument.wordprocessingml.template', 'application/zip', 'application/octet-stream'],
+        'doc'  => ['application/msword', 'application/vnd.ms-word', 'application/x-msword', 'application/octet-stream'],
+        'pptx' => ['application/vnd.openxmlformats-officedocument.presentationml.presentation', 'application/zip', 'application/octet-stream', 'application/vnd.ms-powerpoint'],
+        'potx' => ['application/vnd.openxmlformats-officedocument.presentationml.template', 'application/zip', 'application/octet-stream'],
+        'ppt'  => ['application/vnd.ms-powerpoint', 'application/mspowerpoint', 'application/x-mspowerpoint', 'application/x-ms-powerpoint', 'application/powerpoint', 'application/octet-stream'],
     ];
 
     private int $maxSizeBytes;
@@ -179,6 +221,18 @@ class FileValidationService
     {
         $normalizedExt = strtolower(ltrim(trim($extension), '.'));
         return in_array($normalizedExt, $this->allowedExtensions, true);
+    }
+
+    /**
+     * True for image/audio/video formats Kanboard core previews itself.
+     *
+     * Such attachments are neither previewed nor content-inspected by this plugin;
+     * they remain rejected so core's own viewer stays the only entry point.
+     */
+    public function isCoreMediaExtension(string $extension): bool
+    {
+        $normalizedExt = strtolower(ltrim(trim($extension), '.'));
+        return in_array($normalizedExt, self::CORE_MEDIA_EXTENSIONS, true);
     }
 
     /**

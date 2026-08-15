@@ -222,3 +222,4 @@ class MarkdownParserService
         return '#';
     }
 }
+

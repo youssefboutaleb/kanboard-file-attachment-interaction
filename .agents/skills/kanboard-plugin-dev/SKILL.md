@@ -27,3 +27,4 @@ This skill provides step-by-step guidance for developing, testing, and verifying
 4. [ ] All output sanitized via `htmlspecialchars()`.
 5. [ ] Paths wrapped with `basename()`.
 6. [ ] Unit test written and passing in `tests/Unit`.
+

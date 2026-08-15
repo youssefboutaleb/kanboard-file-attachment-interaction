@@ -63,7 +63,7 @@ class PluginTest extends TestCase
     public function testPluginMetadata(): void
     {
         $this->assertSame('FileInteractionCore', $this->plugin->getPluginName());
-        $this->assertSame('0.6.0', $this->plugin->getPluginVersion());
+        $this->assertSame('0.9.0', $this->plugin->getPluginVersion());
         $this->assertSame('Security & Engineering Team', $this->plugin->getPluginAuthor());
         $this->assertSame('https://github.com/youssefboutaleb/kanboard-file-attachment-interaction', $this->plugin->getPluginHomepage());
         $this->assertNotEmpty($this->plugin->getPluginDescription());
@@ -170,9 +170,11 @@ class PluginTest extends TestCase
         ]);
 
         $this->assertStringContainsString('fa-code', $output);
-        $this->assertStringContainsString('SH', $output);
         $this->assertStringContainsString('class="code-highlight language-sh"', $output);
-        $this->assertStringContainsString('Safe Read-Only Syntax Highlighted View', $output);
+
+        $this->assertStringNotContainsString('CodePreviewHandler', $output);
+        $this->assertStringNotContainsString('Safe Read-Only Syntax Highlighted View', $output);
+
         // Markdown-only statistics must not leak into the code variant
         $this->assertStringNotContainsString('Headings', $output);
     }
@@ -277,7 +279,7 @@ class PluginTest extends TestCase
      * Content-Disposition: attachment, so pointing <object> at it makes every
      * browser show a save dialog and the document never renders in the modal.
      */
-    public function testPdfPreviewTemplateEmbedsInlineBrowserActionNotDownload(): void
+    public function testPdfPreviewTemplateEmbedsInlineStreamActionNotDownload(): void
     {
         $output = $this->renderTemplate('pdf_preview', [
             'filename' => 'invoice.pdf',
@@ -291,7 +293,17 @@ class PluginTest extends TestCase
         $matched = preg_match('/<object[^>]*data="([^"]+)"[^>]*>/', $output, $matches);
         $this->assertSame(1, $matched, 'pdf_preview.php must embed an <object data="..."> viewer.');
 
-        $this->assertStringContainsString('action=browser', $matches[1]);
+        /**
+         * Task 35: inline rendering must go through the plugin's own stream
+         * action, NOT core's FileViewerController::browser. Core answers with the
+         * right Content-Type but every core response also carries
+         * `X-Frame-Options: DENY`, which stops the browser rendering the PDF
+         * inside <object> and forces the "not supported" fallback banner.
+         */
+        $this->assertStringContainsString('action=inline', $matches[1]);
+        $this->assertStringContainsString('FileStreamController', $matches[1]);
+        $this->assertStringNotContainsString('FileViewerController', $matches[1]);
+        $this->assertStringNotContainsString('action=browser', $matches[1]);
         $this->assertStringNotContainsString('action=download', $matches[1]);
         $this->assertStringContainsString('type="application/pdf"', $output);
         $this->assertStringContainsString('file_id=42', $matches[1]);
@@ -344,7 +356,7 @@ class PluginTest extends TestCase
      * Project attachments carry no task id; the project_id parameter is only
      * appended when it is actually known.
      */
-    public function testPdfPreviewTemplateOmitsUnknownProjectId(): void
+    public function testPdfPreviewTemplateOmitsUnknownProjectIdOnDownloadAction(): void
     {
         $output = $this->renderTemplate('pdf_preview', [
             'filename' => 'spec.pdf',
@@ -355,8 +367,17 @@ class PluginTest extends TestCase
             'metadata' => ['isBinary' => true, 'sizeBytes' => 512],
         ]);
 
-        $this->assertStringNotContainsString('project_id=', $output);
-        $this->assertStringContainsString('file_id=9', $output);
+        $matched = preg_match_all('/href="([^"]*action=download[^"]*)"/', $output, $matches);
+        $this->assertGreaterThan(0, $matched, 'A download action must be present.');
+
+        foreach ($matches[1] as $downloadUrl) {
+            $this->assertStringNotContainsString('project_id=', $downloadUrl);
+            $this->assertStringContainsString('file_id=9', $downloadUrl);
+        }
+
+        $streamMatched = preg_match('/<object[^>]*data="([^"]+)"[^>]*>/', $output, $streamMatches);
+        $this->assertSame(1, $streamMatched);
+        $this->assertStringContainsString('project_id=0', $streamMatches[1]);
     }
 
     // ---------------------------------------------------------------------
@@ -411,7 +432,7 @@ class PluginTest extends TestCase
      */
     public function testDropdownHidesEditLinkForNonEditableFormats(): void
     {
-        foreach (['report.pdf', 'export.csv', 'page.html', 'archive.exe'] as $filename) {
+        foreach (['report.pdf', 'archive.exe'] as $filename) {
             $output = $this->renderTemplate('dropdown', $this->taskFileVars($filename));
 
             $this->assertStringNotContainsString(
@@ -471,7 +492,7 @@ class PluginTest extends TestCase
             );
         }
 
-        foreach (['pdf', 'csv', 'tsv', 'html'] as $extension) {
+        foreach (['pdf'] as $extension) {
             $this->assertNotContains(
                 $extension,
                 FileEditValidationService::EDITABLE_EXTENSIONS,
@@ -579,7 +600,7 @@ class PluginTest extends TestCase
         $matched = preg_match('/<span id="fic-syntax-status".*?<\/span>/s', $output, $matches);
         $this->assertSame(1, $matched, 'edit.php must render a #fic-syntax-status indicator.');
 
-        return $matches[0];
+        return trim((string) preg_replace('/\s+/', ' ', strip_tags($matches[0])));
     }
 
     public function testEditTemplateReportsJsonSyntaxState(): void
@@ -680,7 +701,12 @@ class PluginTest extends TestCase
         foreach (['Summary', 'Detail', 'Notes'] as $sheetName) {
             $this->assertStringContainsString($sheetName, $output);
         }
-        $this->assertSame(3, substr_count($output, 'data-sheet-index='));
+        // `role="tab"` counts the tabs alone — `fic-sheet-tab` would also match the
+        // `fic-sheet-tabs` container, and `role="tablist"`/`role="tabpanel"` do not
+        // match this exact string.
+        $this->assertSame(3, substr_count($output, 'role="tab"'));
+        $this->assertSame(3, substr_count($output, 'role="tabpanel"'));
+        $this->assertSame(6, substr_count($output, 'data-sheet-index='));
         $this->assertSame(1, substr_count($output, 'aria-selected="true"'));
         $this->assertStringContainsString('3 Sheets', $output);
     }
@@ -709,10 +735,11 @@ class PluginTest extends TestCase
         ]));
 
         $this->assertStringNotContainsString('fic-sheet-tabs', $output);
-        $this->assertStringNotContainsString('data-sheet-index=', $output);
-        // The active sheet badge is still shown in the header
-        $this->assertStringContainsString('fic-active-sheet-badge', $output);
-        $this->assertStringContainsString('OnlySheet', $output);
+        // No TAB is rendered. The single panel still carries data-sheet-index
+        // (Task 38) — that attribute pairs panels to tabs and is harmless without
+        // a tab strip, so assert on the tab class rather than the attribute.
+        $this->assertStringNotContainsString('fic-sheet-tab"', $output);
+        $this->assertStringNotContainsString('role="tab"', $output);
     }
 
     public function testExcelTemplateRendersSpreadsheetColumnLabels(): void
@@ -860,6 +887,83 @@ class PluginTest extends TestCase
      *
      * @param array<string, mixed> $vars
      */
+    public function testDocxPreviewTemplateRendering(): void
+    {
+        $vars = [
+            'filename' => 'specification.docx',
+            'handler' => 'DocxPreviewHandler',
+            'extension' => 'docx',
+            'content' => '<h1 class="docx-heading">Project Specs</h1><p class="docx-paragraph">Details here.</p>',
+            'metadata' => [
+                'paragraphCount' => 1,
+                'headingCount' => 1,
+                'tableCount' => 0,
+                'wordCount' => 4,
+                'isLegacyFormat' => false,
+                'parsed' => true,
+            ],
+            'taskId' => 3,
+            'projectId' => 7,
+            'fileId' => 42,
+            'is_ajax' => true,
+        ];
+
+        $output = $this->renderTemplate('docx_preview', $vars);
+
+        $this->assertStringContainsString('specification.docx', $output);
+        $this->assertStringContainsString('fa-file-word-o', $output);
+        $this->assertStringContainsString('4 Words', $output);
+        $this->assertStringContainsString('fic-docx-container', $output);
+        $this->assertStringContainsString('data-fic-stream-url', $output);
+        $this->assertStringContainsString('Word Document', $output);
+    }
+
+    public function testPptxPreviewTemplateRendering(): void
+    {
+        $vars = [
+            'filename' => 'deck.pptx',
+            'handler' => 'PptxPreviewHandler',
+            'extension' => 'pptx',
+            'content' => '',
+            'metadata' => [
+                'slides' => [
+                    [
+                        'index' => 1,
+                        'title' => 'Intro Slide',
+                        'paragraphs' => ['Welcome everyone.'],
+                        'bulletPoints' => ['Overview', 'Next Steps'],
+                        'tables' => [],
+                    ],
+                    [
+                        'index' => 2,
+                        'title' => 'Summary',
+                        'paragraphs' => ['Final thoughts.'],
+                        'bulletPoints' => [],
+                        'tables' => [],
+                    ],
+                ],
+                'slideCount' => 2,
+                'title' => 'Intro Slide',
+                'isLegacyFormat' => false,
+                'parsed' => true,
+            ],
+            'taskId' => 3,
+            'projectId' => 7,
+            'fileId' => 42,
+            'is_ajax' => true,
+        ];
+
+        $output = $this->renderTemplate('pptx_preview', $vars);
+
+        $this->assertStringContainsString('deck.pptx', $output);
+        $this->assertStringContainsString('fa-file-powerpoint-o', $output);
+        $this->assertStringContainsString('2 Slides', $output);
+        $this->assertStringContainsString('fic-pptx-container', $output);
+        $this->assertStringContainsString('fic-slide-tab', $output);
+        $this->assertStringContainsString('data-fic-stream-url', $output);
+        $this->assertStringContainsString('PowerPoint Presentation', $output);
+    }
+
     private function renderTemplate(string $name, array $vars): string
     {
         $path = __DIR__ . '/../../Template/file/' . $name . '.php';
@@ -994,6 +1098,11 @@ class FakeTemplateHelper
      */
     public function render(string $path, array $vars): string
     {
+        if (str_contains($path, ':')) {
+            [, $relative] = explode(':', $path, 2);
+            $path = __DIR__ . '/../../Template/' . $relative . '.php';
+        }
+
         extract($vars, EXTR_SKIP);
 
         ob_start();

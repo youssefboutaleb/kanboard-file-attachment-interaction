@@ -76,3 +76,4 @@ class FileInteractionManager
         return $this->handlers;
     }
 }
+

@@ -4,4 +4,6 @@ parameters:
         - src
     bootstrapFiles:
         - tests/stubs/BaseController.php
+        - tests/stubs/TemplateFunctions.php
     checkMissingIterableValueType: true
+

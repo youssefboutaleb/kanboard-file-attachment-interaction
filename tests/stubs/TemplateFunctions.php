@@ -20,3 +20,4 @@ if (!function_exists('t')) {
         return $args === [] ? $text : vsprintf($text, $args);
     }
 }
+

@@ -25,3 +25,4 @@ This roadmap outlines the planned evolution of `kanboard-file-interaction-core`.
 - Excel spreadsheet preview/edit view
 - Integration options for OnlyOffice / Collabora
 - Automated workflow triggers on file modification
+

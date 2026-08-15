@@ -15,3 +15,4 @@
 <div class="panel-meta" style="margin-top: 10px; font-size: 0.85em; color: #6a737d;">
     <i class="fa fa-lock"></i> <?= t('Safe Escaped Plain Text View') ?>
 </div>
+

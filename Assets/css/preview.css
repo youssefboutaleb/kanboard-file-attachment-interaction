@@ -1,0 +1,310 @@
+/**
+ * Fullscreen mode for FileInteractionCore preview and edit modals.
+ *
+ * `.fic-modal-fullscreen` is toggled on Kanboard's `#modal-box` element by
+ * Assets/js/preview-controls.js.
+ *
+ * WHY `!important` IS UNAVOIDABLE HERE: core's modal.js sets the box width as an
+ * INLINE style (`KB.dom('div').attr('id','modal-box').style('width', width)`), and
+ * an inline style beats any stylesheet selector regardless of specificity. The
+ * same applies to the per-template inline `max-height` on the scroll wrappers.
+ * Overriding inline styles from JavaScript instead would mean storing and
+ * restoring each original value, which is more fragile than this.
+ *
+ * Scoped entirely under `.fic-modal-fullscreen`, so nothing here affects a normal
+ * modal or any other part of Kanboard.
+ */
+
+#modal-box.fic-modal-fullscreen {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 100% !important;
+    max-height: 100% !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    display: flex;
+    flex-direction: column;
+}
+
+#modal-box.fic-modal-fullscreen #modal-content {
+    /* Fill whatever height the header leaves, and own the scrolling. */
+    flex: 1 1 auto;
+    overflow-y: auto;
+    max-height: none !important;
+}
+
+/* Sticky modal header so the close button stays reachable at full height. */
+#modal-box.fic-modal-fullscreen #modal-header {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    background: #fff;
+}
+
+/**
+ * Sticky document header — the filename, badges and the action bar itself remain
+ * visible while scrolling a long attachment.
+ */
+#modal-box.fic-modal-fullscreen .page-header {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: #fff;
+    margin: 0;
+    padding: 8px 0;
+    border-bottom: 1px solid #e1e4e8;
+}
+
+/**
+ * Let every scrollable body grow to the available height. Each of these carries an
+ * inline max-height (480-520px) sized for the normal modal.
+ */
+#modal-box.fic-modal-fullscreen .file-preview-container,
+#modal-box.fic-modal-fullscreen .markdown-body,
+#modal-box.fic-modal-fullscreen .csv-table-wrapper,
+#modal-box.fic-modal-fullscreen .excel-table-wrapper,
+#modal-box.fic-modal-fullscreen .pdf-viewer-wrapper,
+#modal-box.fic-modal-fullscreen .docx-document-wrapper,
+#modal-box.fic-modal-fullscreen .pptx-slide-canvas {
+    max-height: none !important;
+    height: calc(100vh - 190px) !important;
+}
+
+/* The editor grows with the viewport too. */
+#modal-box.fic-modal-fullscreen #fic-edit-content {
+    max-height: none !important;
+    height: calc(100vh - 400px) !important;
+    min-height: 340px;
+}
+
+/* Keep the table header rows pinned while scrolling a tall grid. */
+#modal-box.fic-modal-fullscreen .csv-table-wrapper thead,
+#modal-box.fic-modal-fullscreen .excel-table-wrapper thead {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+#modal-box.fic-modal-fullscreen .fic-sheet-tabs {
+    position: sticky;
+    top: 0;
+    z-index: 15;
+    background: #fff;
+}
+
+/* Pressed state for the toggle itself. */
+.fic-fullscreen-toggle[aria-pressed="true"] {
+    background: #e9ecef !important;
+    border-color: #adb5bd !important;
+    color: #212529 !important;
+}
+
+/* ==========================================================================
+   Spreadsheet Grid Editor & Live Preview Aesthetics (Google Sheets / Office 365)
+   ========================================================================== */
+
+.fic-spreadsheet-editor {
+    border: 1px solid #d0d7de;
+    border-radius: 0 0 6px 6px;
+    background: #fff;
+    padding: 8px 10px 10px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.fic-grid-toolbar {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+    background: #f6f8fa;
+    padding: 6px 10px;
+    border: 1px solid #e1e4e8;
+    border-radius: 6px;
+}
+
+.fic-active-cell-ref {
+    background: #107c41 !important;
+    color: #fff !important;
+    padding: 5px 10px;
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+    font-size: 13px;
+    font-weight: 700;
+    border-radius: 4px;
+    min-width: 36px;
+    text-align: center;
+    letter-spacing: 0.5px;
+}
+
+.fic-formula-fx {
+    font-style: italic;
+    font-weight: 700;
+    color: #57606a;
+    font-size: 14px;
+    font-family: Georgia, serif;
+    padding: 0 2px;
+}
+
+#fic-formula-input {
+    flex: 1;
+    min-width: 160px;
+    padding: 5px 10px;
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+    font-size: 13px;
+    border: 1px solid #d0d7de;
+    border-radius: 4px;
+    background: #fff;
+    outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+#fic-formula-input:focus {
+    border-color: #107c41;
+    box-shadow: 0 0 0 2px rgba(16, 124, 65, 0.2);
+}
+
+.fic-spreadsheet-grid-wrapper {
+    max-height: 440px;
+    overflow: auto;
+    border: 1px solid #d0d7de;
+    border-radius: 4px;
+    background: #fff;
+    position: relative;
+}
+
+#modal-box.fic-modal-fullscreen .fic-spreadsheet-grid-wrapper {
+    max-height: none !important;
+    height: calc(100vh - 280px) !important;
+}
+
+.fic-spreadsheet-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    text-align: left;
+    table-layout: fixed;
+}
+
+.fic-spreadsheet-table thead th {
+    padding: 6px 10px;
+    border: 1px solid #d0d7de;
+    font-weight: 600;
+    color: #24292f;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    text-align: center;
+    background: #f6f8fa;
+    min-width: 95px;
+    user-select: none;
+    transition: background-color 0.1s ease;
+}
+
+.fic-spreadsheet-table thead th.fic-th-active {
+    background-color: #d4edda !important;
+    color: #0f5132 !important;
+    border-bottom: 2px solid #107c41 !important;
+}
+
+.fic-spreadsheet-table tbody td {
+    border: 1px solid #e1e4e8;
+    padding: 5px 8px;
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+    white-space: nowrap;
+    min-width: 95px;
+    outline: none;
+    transition: background-color 0.08s ease;
+}
+
+.fic-spreadsheet-table tbody td[data-row-index] {
+    padding: 5px 8px;
+    border: 1px solid #d0d7de;
+    color: #57606a;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    text-align: center;
+    font-size: 12px;
+    background: #f6f8fa;
+    font-weight: 600;
+    user-select: none;
+    width: 44px;
+    min-width: 44px;
+}
+
+.fic-spreadsheet-table tbody td[data-row-index].fic-row-active {
+    background-color: #d4edda !important;
+    color: #0f5132 !important;
+    border-right: 2px solid #107c41 !important;
+}
+
+.fic-spreadsheet-table tbody td.fic-grid-cell:hover:not(.is-selected) {
+    background-color: #f6f8fa;
+    cursor: cell;
+}
+
+.fic-spreadsheet-table tbody td.fic-grid-cell.is-selected {
+    background-color: #e8f0fe !important;
+    outline: 2px solid #107c41 !important;
+    outline-offset: -1px;
+    z-index: 1;
+    position: relative;
+}
+
+.fic-edit-sheet-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    border-bottom: 2px solid #107c41;
+    margin-bottom: 8px;
+    align-items: center;
+    max-width: 100%;
+    overflow-x: auto;
+    padding-bottom: 2px;
+}
+
+.fic-edit-sheet-tab-wrapper {
+    display: inline-flex;
+    align-items: center;
+    margin-bottom: 4px;
+    flex-shrink: 0;
+    border-radius: 4px 4px 0 0;
+    transition: background-color 0.12s ease;
+}
+
+.fic-edit-sheet-tab {
+    padding: 4px 8px;
+    border: none;
+    background: none;
+    border-radius: 4px 4px 0 0;
+    cursor: pointer;
+    font-size: 12px;
+    color: #24292f;
+    transition: all 0.12s ease;
+}
+
+.fic-edit-sheet-tab.is-active {
+    color: #fff !important;
+    font-weight: 600;
+}
+
+/* High-Fidelity Office Document & Presentation Preview Styles */
+.fic-docx-container .docx-wrapper {
+    background: transparent !important;
+    padding: 0 !important;
+}
+
+.fic-docx-container .docx-wrapper > section.docx {
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1) !important;
+    margin-bottom: 20px !important;
+    border-radius: 4px;
+}
+
+.fic-pptx-container:focus {
+    outline: none;
+}
+
+.fic-pptx-slide-canvas-wrapper svg {
+    max-width: 100%;
+    height: auto;
+    display: block;
+}
+
+

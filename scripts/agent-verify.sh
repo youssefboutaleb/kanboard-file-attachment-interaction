@@ -35,11 +35,15 @@ else
 fi
 
 echo "--> [3/4] Running Static Analysis (PHPStan)..."
+# --memory-limit is required: php:8.1-cli defaults to 128M, which the analysis
+# now exceeds and reports as a "Child process error (exit code 255)" rather than
+# as an out-of-memory condition.
+PHPSTAN_MEMORY_LIMIT="${PHPSTAN_MEMORY_LIMIT:-1G}"
 if [ "$HAS_HOST_PHP" = true ] && [ -f "vendor/bin/phpstan" ]; then
-    vendor/bin/phpstan analyse --configuration=phpstan.neon
+    vendor/bin/phpstan analyse --configuration=phpstan.neon --memory-limit="$PHPSTAN_MEMORY_LIMIT"
     echo "✔ PHPStan Analysis Passed (Host)"
 elif command -v docker >/dev/null 2>&1 && [ -f "vendor/bin/phpstan" ]; then
-    $DOCKER_CMD php:8.1-cli vendor/bin/phpstan analyse --configuration=phpstan.neon --no-progress
+    $DOCKER_CMD php:8.1-cli vendor/bin/phpstan analyse --configuration=phpstan.neon --memory-limit=512M --no-progress --memory-limit="$PHPSTAN_MEMORY_LIMIT"
     echo "✔ PHPStan Analysis Passed (Docker)"
 else
     echo "ℹ️ PHPStan check skipped."

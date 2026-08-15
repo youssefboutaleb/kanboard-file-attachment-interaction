@@ -237,12 +237,37 @@ class FilePreviewControllerTest extends TestCase
     /**
      * Spec 004 TC-PDF-02: widening the whitelist for .pdf must not admit other
      * binary container formats.
+     *
+     * TASK 36 UPDATE: these no longer raise InvalidFileException. Unrecognised
+     * extensions are now content-inspected, and binary payloads answer with the
+     * "Binary File" download notice instead of an error modal. The security
+     * property under test is unchanged and asserted directly below: no handler
+     * runs and no attachment bytes reach the response.
      */
-    public function testShowStillRejectsDisallowedBinaryFormats(): void
+    public function testShowServesBinaryNoticeForDisallowedBinaryFormats(): void
     {
-        foreach (['archive.zip', 'installer.exe', 'report.docx'] as $filename) {
+        // A real ZIP/DOCX/EXE header — NUL bytes are what mark it binary.
+        $binaryPayload = "PK\x03\x04\x14\x00\x00\x00\x08\x00" . str_repeat("\x00\xff", 64);
+
+        foreach (['archive.zip', 'installer.exe', 'library.dll'] as $filename) {
+            $response = $this->controller->show(1, 10, 100, $filename, $binaryPayload);
+
+            $this->assertSame('BinaryNotice', $response['handler'], $filename . ' must not reach a preview handler.');
+            $this->assertTrue($response['metadata']['isBinary']);
+            $this->assertSame('null_byte', $response['metadata']['reason']);
+            $this->assertSame('', $response['content'], $filename . ' bytes must never be rendered.');
+        }
+    }
+
+    /**
+     * Task 36: media formats core previews itself stay rejected outright, so no
+     * URL can route active content such as SVG into a preview path.
+     */
+    public function testShowStillRejectsCoreOwnedMediaFormats(): void
+    {
+        foreach (['logo.svg', 'photo.jpg', 'clip.mp4', 'audio.mp3'] as $filename) {
             try {
-                $this->controller->show(1, 10, 100, $filename, 'PK binary payload');
+                $this->controller->show(1, 10, 100, $filename, 'plain looking payload');
                 $this->fail("Preview should have been rejected for {$filename}");
             } catch (InvalidFileException $e) {
                 $this->assertStringContainsString('is not allowed', $e->getMessage());

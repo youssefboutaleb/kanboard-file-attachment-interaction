@@ -44,3 +44,4 @@ final class PreviewResult
         return $this->metadata;
     }
 }
+

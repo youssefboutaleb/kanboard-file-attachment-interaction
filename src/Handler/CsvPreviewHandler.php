@@ -6,6 +6,7 @@ namespace Kanboard\Plugin\FileInteractionCore\Handler;
 
 use Kanboard\Plugin\FileInteractionCore\Core\Contract\FileHandlerInterface;
 use Kanboard\Plugin\FileInteractionCore\Core\Contract\PreviewResult;
+use Kanboard\Plugin\FileInteractionCore\Service\CsvDelimiterRegistry;
 use Kanboard\Plugin\FileInteractionCore\Service\CsvParserService;
 
 /**
@@ -14,10 +15,14 @@ use Kanboard\Plugin\FileInteractionCore\Service\CsvParserService;
 class CsvPreviewHandler implements FileHandlerInterface
 {
     private CsvParserService $parserService;
+    private CsvDelimiterRegistry $delimiterRegistry;
 
-    public function __construct(?CsvParserService $parserService = null)
-    {
+    public function __construct(
+        ?CsvParserService $parserService = null,
+        ?CsvDelimiterRegistry $delimiterRegistry = null
+    ) {
         $this->parserService = $parserService ?? new CsvParserService();
+        $this->delimiterRegistry = $delimiterRegistry ?? new CsvDelimiterRegistry();
     }
 
     public function supports(string $extension, string $mimeType): bool
@@ -33,11 +38,22 @@ class CsvPreviewHandler implements FileHandlerInterface
     }
 
     /**
-     * @param array<string, mixed> $options
+     * @param array<string, mixed> $options Accepts `delimiterToken` — a token from
+     *                                      CsvDelimiterRegistry naming the
+     *                                      delimiter the user picked. Absent or
+     *                                      `auto` keeps the sniffer in charge.
      */
     public function preview(string $content, array $options = []): PreviewResult
     {
-        $parseResult = $this->parserService->parse($content);
+        $requestedToken = $this->delimiterRegistry->normalizeToken(
+            isset($options['delimiterToken']) ? (string) $options['delimiterToken'] : null
+        );
+
+        // null hands the decision back to CsvParserService::parse(), which sniffs.
+        $parseResult = $this->parserService->parse(
+            $content,
+            $this->delimiterRegistry->resolveDelimiter($requestedToken)
+        );
 
         // Escape every cell to guarantee XSS safety
         $escapedRows = array_map(function (array $row): array {
@@ -49,6 +65,13 @@ class CsvPreviewHandler implements FileHandlerInterface
         $metadata = [
             'handler' => $this->getHandlerName(),
             'delimiter' => $parseResult['delimiter'],
+            // The token actually in effect: the user's choice, or the one the
+            // sniffer settled on, so the picker can show the real selection.
+            'delimiterToken' => $requestedToken === CsvDelimiterRegistry::AUTO
+                ? $this->delimiterRegistry->getTokenForDelimiter($parseResult['delimiter'])
+                : $requestedToken,
+            'delimiterMode' => $requestedToken,
+            'delimiterLabel' => $this->delimiterRegistry->getDelimiterLabel($parseResult['delimiter']),
             'totalRows' => $parseResult['totalRows'],
             'totalColumns' => $parseResult['totalColumns'],
             'truncatedRows' => $parseResult['truncatedRows'],

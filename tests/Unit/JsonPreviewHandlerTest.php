@@ -77,3 +77,4 @@ class JsonPreviewHandlerTest extends TestCase
         $this->assertFalse($result->getMetadata()['validJson']);
     }
 }
+
