@@ -18,6 +18,30 @@ Designed with a **defense-in-depth security architecture**, all user uploads are
 
 ---
 
+## 📸 Visual Showcase
+
+| 📊 PowerPoint (.pptx) Slide Deck | 📑 Sandboxed PDF Viewer |
+|:---:|:---:|
+| ![PowerPoint Presentation Viewer](docs/screenshots/pptx.png) | ![PDF Reader](docs/screenshots/pdf.png) |
+
+| 📈 Responsive CSV Tabular View | ✏️ Live Spreadsheet & CSV Grid Editor |
+|:---:|:---:|
+| ![CSV Table View](docs/screenshots/csv.png) | ![CSV Grid Editor](docs/screenshots/csv-edit.png) |
+
+| 💻 Code & JSON Syntax Highlighting | 📝 Live Text & JSON Editor |
+|:---:|:---:|
+| ![JSON Code Preview](docs/screenshots/json.png) | ![JSON Editor](docs/screenshots/json-edit.png) |
+
+| 🌐 Sandboxed HTML Render Engine | 🖥️ Fullscreen Modal Reading Mode |
+|:---:|:---:|
+| ![HTML Preview](docs/screenshots/html.png) | ![Fullscreen View](docs/screenshots/markdown-fullscreen.png) |
+
+| 📝 Markdown Rich HTML View | ✏️ Live Markdown Document Editor |
+|:---:|:---:|
+| ![Markdown Preview](docs/screenshots/mardown.png) | ![Markdown Editor](docs/screenshots/markdown-edit.png) |
+
+---
+
 ## ✨ Features & Supported Formats
 
 | Format Category | Supported Extensions | Capabilities & Features |
