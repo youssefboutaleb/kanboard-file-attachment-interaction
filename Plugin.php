@@ -127,12 +127,12 @@ class Plugin extends Base
 
     public function getPluginAuthor()
     {
-        return 'Security & Engineering Team';
+        return 'Youssef BOUTALEB';
     }
 
     public function getPluginVersion()
     {
-        return '1.0.0';
+        return '1.0.1';
     }
 
     public function getPluginHomepage()

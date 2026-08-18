@@ -2,7 +2,7 @@
 
 **Feature Target**: Milestone 5 — Live Text/JSON Editor & Attachment Versioning Engine  
 **Document Status**: Proposal / Specification  
-**Author**: Security & Engineering Team  
+**Author**: Youssef BOUTALEB  
 **Date**: 2026-08-08  
 
 ---

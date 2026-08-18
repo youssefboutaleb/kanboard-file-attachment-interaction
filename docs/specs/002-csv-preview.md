@@ -2,7 +2,7 @@
 
 **Feature Target**: Milestone 2 — CSV Read-Only Table Preview Engine  
 **Document Status**: Proposal / Specification  
-**Author**: Security & Engineering Team  
+**Author**: Youssef BOUTALEB  
 **Date**: 2026-08-07  
 
 ---

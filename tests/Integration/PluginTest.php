@@ -63,8 +63,8 @@ class PluginTest extends TestCase
     public function testPluginMetadata(): void
     {
         $this->assertSame('FileInteractionCore', $this->plugin->getPluginName());
-        $this->assertSame('1.0.0', $this->plugin->getPluginVersion());
-        $this->assertSame('Security & Engineering Team', $this->plugin->getPluginAuthor());
+        $this->assertSame('1.0.1', $this->plugin->getPluginVersion());
+        $this->assertSame('Youssef BOUTALEB', $this->plugin->getPluginAuthor());
         $this->assertSame('https://github.com/youssefboutaleb/kanboard-file-attachment-interaction', $this->plugin->getPluginHomepage());
         $this->assertNotEmpty($this->plugin->getPluginDescription());
     }

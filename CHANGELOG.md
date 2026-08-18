@@ -5,6 +5,16 @@ All notable changes to `kanboard-file-interaction-core` will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2026-08-18
+
+Author Metadata Update & Patch Release.
+
+### Changed
+- Updated plugin author metadata to **Youssef BOUTALEB** in `Plugin.php`, `composer.json`, and technical specifications.
+- Bumped plugin version to `1.0.1`.
+
+---
+
 ## [1.0.0] - 2026-08-15
 
 Production Architecture Refactoring, Visual Documentation & Open-Source Release.

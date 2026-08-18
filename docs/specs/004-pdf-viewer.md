@@ -2,7 +2,7 @@
 
 **Feature Target**: Milestone 4 — PDF Read-Only Viewer Engine  
 **Document Status**: Proposal / Specification  
-**Author**: Security & Engineering Team  
+**Author**: Youssef BOUTALEB  
 **Date**: 2026-08-08  
 
 ---

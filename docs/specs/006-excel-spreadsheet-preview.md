@@ -2,7 +2,7 @@
 
 **Feature Target**: Milestone 6 — Excel Spreadsheet Read-Only Interactive Viewer  
 **Document Status**: Proposal / Specification  
-**Author**: Security & Engineering Team  
+**Author**: Youssef BOUTALEB  
 **Date**: 2026-08-08  
 
 ---

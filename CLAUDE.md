@@ -140,6 +140,13 @@ This document defines the agentic workflow, automated quality gates, git hooks, 
   - Bumped plugin version to `1.0.0` in `Plugin.php` and `CHANGELOG.md`.
   - Ran full verification pipeline (`bash scripts/agent-verify.sh`): PHP syntax OK, Composer configuration valid, PHPStan Level 8 passed with 0 errors, and all 751 tests passed with 0 warnings/deprecations.
 
+### Milestone 11: Author Metadata Update & GitHub Delivery (100% RELEASED - v1.0.1)
+- [x] **Task 51: Author Name Update & Release v1.0.1**:
+  - Updated plugin author metadata to **Youssef BOUTALEB** in `Plugin.php`, `composer.json`, and technical specifications (`docs/specs/*.md`).
+  - Updated integration test suite in `tests/Integration/PluginTest.php` to assert plugin author `Youssef BOUTALEB` and version `1.0.1`.
+  - Bumped plugin version to `1.0.1` in `Plugin.php` and recorded release in `CHANGELOG.md`.
+  - Ran full verification pipeline (`bash scripts/agent-verify.sh`): PHP syntax OK, Composer configuration valid, PHPStan Level 8 passed clean, and all 751 PHPUnit unit/integration tests passed.
+
 ---
 
 ## 🛠️ Essential Commands & Agentic Scripts
