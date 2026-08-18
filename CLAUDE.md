@@ -200,8 +200,9 @@ This document defines the agentic workflow, automated quality gates, git hooks, 
     the default changes in PHP 9. Passing the **current** default preserves behaviour.
   - CI gained PHPStan, `php -l`, PHP 8.4, and a job that builds and extracts the archive.
     Added root `SECURITY.md` (with an advisory for < 1.1.0), issue/PR templates.
-  - `docs/kanboard-directory-submission.md` prepared; submission **blocked** on the
-    `pptx-viewer.umd.js` provenance issue recorded in `NOTICE`.
+  - `docs/kanboard-directory-submission.md` prepared and unblocked: `pptx-viewer.umd.js`
+    was confirmed first-party, given a license banner (it had none) and recorded in
+    `NOTICE`. `PackagingTest` fails if any bundle in `Assets/js/vendor/` lacks an entry.
 - [x] **Task 56: Verification & Release v1.1.0**
   - 770 tests / 2619 assertions, 0 skipped with `ext-zip`; PHPStan level 8 clean; green on
     PHP 8.1, 8.2, 8.3 and 8.4.
@@ -367,7 +368,10 @@ Every task executed by Claude or AI agents follows a 6-phase loop:
     been unrunnable since the day it was written and nothing noticed. Vendor patching must
     fetch a pinned upstream, verify a checksum, patch that, and exit non-zero on any miss.
 64. **Vendor Bundles Need Provenance Before They Need Patches**: `jszip.min.js` and
-    `docx-preview.min.js` carry license banners; `pptx-viewer.umd.js` carries nothing — no
-    license, copyright, version or upstream URL — and is redistributed in every release.
-    Record provenance in `NOTICE` at the moment a bundle is added; afterwards it may be
-    unknowable. `PackagingTest` now fails if a file in `Assets/js/vendor/` has no NOTICE entry.
+    `docx-preview.min.js` carried license banners; `pptx-viewer.umd.js` carried nothing — no
+    license, copyright, version or upstream URL — despite being redistributed in every
+    release. It turned out to be FIRST-PARTY, but nothing in the repository said so, and an
+    unbannered minified blob in a directory named `vendor/` reads as someone else's code to
+    every reviewer. Stamp a banner on first-party bundles too, and record provenance in
+    `NOTICE` when a bundle is added — afterwards it may be unknowable. `PackagingTest` now
+    fails if a file in `Assets/js/vendor/` has no NOTICE entry.

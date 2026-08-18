@@ -118,11 +118,11 @@ tables and reads no settings. Nothing needs to be enabled after installation.
 ### Option 1: Install from GitHub Release (Recommended)
 
 1. Navigate to the [Releases](https://github.com/youssefboutaleb/kanboard-file-attachment-interaction/releases) page.
-2. Download the latest release archive: `FileInteractionCore-1.1.0.zip`.
+2. Download the latest release archive: `FileInteractionCore-1.1.1.zip`.
 3. Extract the archive into your Kanboard `plugins/` directory:
    ```bash
    cd /path/to/kanboard/plugins
-   unzip /path/to/FileInteractionCore-1.1.0.zip
+   unzip /path/to/FileInteractionCore-1.1.1.zip
    ```
 4. Ensure the folder name inside `plugins/` is **`FileInteractionCore`**:
    ```bash
@@ -173,7 +173,7 @@ The plugin stores no data of its own, so upgrading is a straight directory repla
 ```bash
 cd /path/to/kanboard/plugins
 rm -rf FileInteractionCore                       # no plugin data is lost
-unzip /path/to/FileInteractionCore-1.1.0.zip
+unzip /path/to/FileInteractionCore-1.1.1.zip
 chown -R www-data:www-data FileInteractionCore
 ```
 
@@ -226,7 +226,7 @@ Worth knowing before installing:
 
 | Symptom | Cause and fix |
 |---|---|
-| Plugin missing from **Settings → Plugins** | The directory must be named exactly `FileInteractionCore`; Kanboard derives the plugin class from the folder name. Extracting a GitHub source archive produces `kanboard-file-attachment-interaction-1.1.0/` — rename it. |
+| Plugin missing from **Settings → Plugins** | The directory must be named exactly `FileInteractionCore`; Kanboard derives the plugin class from the folder name. Extracting a GitHub source archive produces `kanboard-file-attachment-interaction-1.1.1/` — rename it. |
 | Listed as **not compatible** | Your Kanboard is older than 1.2.23. Check **Settings → About**. |
 | Preview entry missing from the attachment menu | Core owns images/audio/video and the plugin does not attach to them. For other formats, confirm the web server user can read the plugin directory. |
 | PDF shows "Inline PDF viewing is not supported" | The embedded viewer needs the plugin's own `/stream` route, which replaces core's `X-Frame-Options: DENY` with `frame-ancestors 'self'`. A reverse proxy adding its own `X-Frame-Options` will re-break it — drop that header for Kanboard, or set `ENABLE_XFRAME` to `false` in `config.php`. |
@@ -314,7 +314,8 @@ docker run --rm -v "$(pwd)":/app -w /app php:8.1-cli vendor/bin/phpunit
 ## 🗺️ Roadmap & Next-Generation Features
 
 - **v1.0.0**: Production Release & Performance Benchmarking. *(released)*
-- **v1.1.0**: Object-level authorization hardening & contributability release. *(current)*
+- **v1.1.0**: Object-level authorization hardening & contributability release.
+- **v1.1.1**: Licensing and documentation follow-up. *(current)*
 - **v1.2.0**: File Revision Diff Viewer (side-by-side visual diff for versioned text & code).
 - **v1.3.0**: Memory-Safe Vector Graphics (`.webp`, sandboxed `.svg` preview).
 - **v1.4.0**: Full-Text Search Indexing for attachment contents.

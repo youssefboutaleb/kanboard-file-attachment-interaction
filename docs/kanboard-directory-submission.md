@@ -8,16 +8,6 @@ plugin installer.
 > **Nothing here has been submitted.** No pull request has been opened and no release has
 > been published. This document is the prepared package; a maintainer performs the steps.
 
-> ## ⛔ SUBMISSION IS BLOCKED
->
-> `Assets/js/vendor/pptx-viewer.umd.js` has **unresolved provenance** — no license banner,
-> no copyright, no version and no upstream identifier (see [`NOTICE`](../NOTICE)). The
-> plugin redistributes it. Listing a plugin that ships unattributed third-party code
-> exposes both you and the directory to a licensing complaint.
->
-> **Close this first** — identify the upstream project, restore its license banner, and
-> record it in `NOTICE`. Every other item below is ready.
-
 ---
 
 ## 1. Repository URL
@@ -45,17 +35,23 @@ name inside `plugins/`. Kanboard derives the plugin class from the folder name i
 
 ## 4. Current version
 
-`1.1.0` — declared by `Plugin::getPluginVersion()`, the single source of truth.
+`1.1.1` — declared by `Plugin::getPluginVersion()`, the single source of truth.
 `CHANGELOG.md` and `tests/Integration/PackagingTest.php` both enforce agreement.
 
 ## 5. License
 
 **MIT** (`LICENSE`, `composer.json`, and the `license` field below all agree).
 
-Bundled third-party JavaScript is listed in [`NOTICE`](../NOTICE): JSZip 3.10.1 (MIT
-option of its MIT/GPLv3 dual license) and docx-preview (Apache-2.0 — permissive and
-redistributable inside an MIT work, provided its banner and attribution are preserved,
-which `NOTICE` does). The third bundle is the blocker above.
+Everything in `Assets/js/vendor/` is accounted for in [`NOTICE`](../NOTICE):
+
+| Bundle | Origin | License |
+|---|---|---|
+| `jszip.min.js` 3.10.1 | third-party | MIT (the MIT option of its MIT/GPLv3 dual license) |
+| `docx-preview.min.js` | third-party | Apache-2.0 — permissive and redistributable inside an MIT work, provided its banner and attribution are preserved, which `NOTICE` does |
+| `pptx-viewer.umd.js` | **first-party** | MIT, this project's own license |
+
+No bundle carries a copyleft or attribution obligation that conflicts with listing the
+plugin under MIT.
 
 ## 6. Compatibility
 
@@ -74,17 +70,17 @@ Requires **PHP ≥ 8.1**; CI runs 8.1, 8.2, 8.3 and 8.4.
 
 ## 7. Release URL
 
-    https://github.com/youssefboutaleb/kanboard-file-attachment-interaction/releases/tag/v1.1.0
+    https://github.com/youssefboutaleb/kanboard-file-attachment-interaction/releases/tag/v1.1.1
 
 ## 8. Download ZIP URL
 
-    https://github.com/youssefboutaleb/kanboard-file-attachment-interaction/releases/download/v1.1.0/FileInteractionCore-1.1.0.zip
+    https://github.com/youssefboutaleb/kanboard-file-attachment-interaction/releases/download/v1.1.1/FileInteractionCore-1.1.1.zip
 
 This is the release **asset** built by `scripts/package-plugin.sh`, not a GitHub source
 archive. The distinction is mandatory: the `kanboard/website` README explicitly warns that
 GitHub archive URLs "create incorrect directory structures". A source archive would extract
-to `kanboard-file-attachment-interaction-1.1.0/`, which Kanboard would load as a plugin
-named `Kanboard-file-attachment-interaction-1.1.0` — the class would not resolve and the
+to `kanboard-file-attachment-interaction-1.1.1/`, which Kanboard would load as a plugin
+named `Kanboard-file-attachment-interaction-1.1.1` — the class would not resolve and the
 plugin would never load.
 
 The built asset extracts to `FileInteractionCore/`, and the packaging script fails the
@@ -106,7 +102,7 @@ alphabetical order every existing entry uses; all fifteen fields are required.
         "author": "Youssef BOUTALEB",
         "compatible_version": ">=1.2.23",
         "description": "Preview and edit task attachments without leaving Kanboard. Renders Word, PowerPoint, Excel, PDF, CSV, Markdown, HTML, JSON and source code in a modal, with an in-browser editor for text, code, CSV and spreadsheet attachments. Every format is parsed in pure PHP and escaped before display; images, audio and video are left to Kanboard's own viewers.",
-        "download": "https://github.com/youssefboutaleb/kanboard-file-attachment-interaction/releases/download/v1.1.0/FileInteractionCore-1.1.0.zip",
+        "download": "https://github.com/youssefboutaleb/kanboard-file-attachment-interaction/releases/download/v1.1.1/FileInteractionCore-1.1.1.zip",
         "has_hooks": true,
         "has_overrides": false,
         "has_schema": false,
@@ -117,7 +113,7 @@ alphabetical order every existing entry uses; all fifteen fields are required.
         "readme": "https://github.com/youssefboutaleb/kanboard-file-attachment-interaction/blob/main/README.md",
         "remote_install": true,
         "title": "File Interaction Core",
-        "version": "1.1.0"
+        "version": "1.1.1"
     },
 ```
 
@@ -166,7 +162,7 @@ PDF, CSV, Markdown, HTML, JSON and source code render in a modal; text, code, CS
 spreadsheet attachments can be edited in place.
 
 - **Repository:** https://github.com/youssefboutaleb/kanboard-file-attachment-interaction
-- **Release:** https://github.com/youssefboutaleb/kanboard-file-attachment-interaction/releases/tag/v1.1.0
+- **Release:** https://github.com/youssefboutaleb/kanboard-file-attachment-interaction/releases/tag/v1.1.1
 - **License:** MIT
 - **Compatible with:** Kanboard >= 1.2.23 (requires PHP >= 8.1)
 
@@ -187,11 +183,10 @@ Notes for reviewers:
 
 **Before submitting**
 
-- [ ] **Resolve the `pptx-viewer.umd.js` provenance blocker** and update `NOTICE`.
-- [ ] Publish release `v1.1.0` and confirm the asset URL in §8 returns HTTP 200.
+- [ ] Publish release `v1.1.1` and confirm the asset URL in §8 returns HTTP 200.
 - [ ] Download that asset and install it into a clean Kanboard ≥ 1.2.23 — through the
       admin UI's remote installer, which is the path `remote_install: true` promises.
-- [ ] Confirm the plugin appears under **Settings → Plugins** with version `1.1.0`.
+- [ ] Confirm the plugin appears under **Settings → Plugins** with version `1.1.1`.
 
 **There is no code review.** The Kanboard documentation states plainly that there is no
 approval process for the directory — a merged PR publishes the entry as-is. Correctness is

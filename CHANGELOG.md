@@ -5,6 +5,32 @@ All notable changes to `kanboard-file-interaction-core` will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2026-08-18
+
+Licensing and documentation follow-up to 1.1.0. No functional change — no behaviour,
+route, handler or permission check differs from 1.1.1's predecessor.
+
+### Added
+
+- MIT license banner on `Assets/js/vendor/pptx-viewer.umd.js`. The bundle shipped in every
+  previous release carrying no license, copyright, version or origin of any kind, which made
+  it indistinguishable from unattributed third-party code to anyone reviewing the archive —
+  a listing risk for the plugin directory. It is first-party work by the copyright holder and
+  is covered by this project's own MIT license.
+
+### Changed
+
+- `NOTICE` now classifies each bundle in `Assets/js/vendor/` as first-party or third-party,
+  and records that docx-preview stays Apache-2.0 inside this MIT work — permitted, since
+  Apache-2.0 is permissive and its attribution travels with it in `NOTICE`.
+- `scripts/patch_pptx_viewer.js` header rewritten: now that the bundle is known to be
+  first-party, the correct fix is to fold its six patches into the bundle's own source and
+  delete this script, rather than patching a build artifact after every rebuild.
+- `docs/kanboard-directory-submission.md` unblocked and ready to submit.
+- `docs/CONTRIBUTABILITY_REPORT.md` verdict raised to **READY**.
+
+---
+
 ## [1.1.0] - 2026-08-18
 
 Security release. **Upgrading is strongly recommended for every installation.**
@@ -48,7 +74,8 @@ Security release. **Upgrading is strongly recommended for every installation.**
   added the `template:project-overview:documents:dropdown` hook this plugin attaches to.
   Without the override, the inherited default claims compatibility with whatever core is
   running and the hook fails silently on older versions.
-- `NOTICE` recording the license and provenance of the bundled third-party JavaScript.
+- `NOTICE` recording the license and origin of every bundle in `Assets/js/vendor/`, and a
+  license banner on `pptx-viewer.umd.js`, which had none.
 - `tests/Integration/PackagingTest.php` and `tests/bootstrap.php`.
 
 ### Changed
@@ -73,13 +100,6 @@ Security release. **Upgrading is strongly recommended for every installation.**
   `FilePreviewController` and `FileStreamController`. Production classes must not
   reference `tests/`, which the release archive excludes; the stub now loads from
   `tests/bootstrap.php` instead.
-
-### Known issues
-
-- `Assets/js/vendor/pptx-viewer.umd.js` has **unresolved provenance** — no license
-  banner, copyright, version or upstream identifier. See `NOTICE`. This must be closed
-  before the plugin is submitted to the Kanboard plugin directory or a release archive
-  containing it is published.
 
 ---
 

@@ -43,29 +43,14 @@ attribution. Do not relicense the file or strip its banner.
 --------------------------------------------------------------------------------
 3. pptx-viewer — Assets/js/vendor/pptx-viewer.umd.js
 --------------------------------------------------------------------------------
-Homepage:  UNRESOLVED
-Copyright: UNRESOLVED
-License:   UNRESOLVED
+Copyright: (c) 2026 Youssef BOUTALEB
+License:   MIT — this project's own license (see LICENSE)
 
-*** UNRESOLVED PROVENANCE — DO NOT REDISTRIBUTE UNTIL CLOSED ***
+NOT third-party. This bundle is first-party code authored for this plugin and is
+covered by the plugin's own MIT license; it is listed here only because it sits in
+Assets/js/vendor/ alongside the two bundles above, and because that directory is
+where a reviewer looks to check what is being redistributed.
 
-Unlike the two entries above, this file carries no license banner, no copyright
-notice, no version string and no upstream identifier. It exposes a global named
-`PPTXViewer` and was committed wholesale in release v0.9.0, after which
-scripts/patch_pptx_viewer.js rewrote six functions inside it in place.
-
-Its origin could not be established from the file, the repository, or the commit
-history, and no attribution has been invented for it here. Until the upstream
-project, version and license are identified and recorded in this file:
-
-  - the plugin must not be submitted to the Kanboard plugin directory, and
-  - release archives containing this file must not be published.
-
-To close this item: identify the upstream project, restore its license banner at
-the top of the file, replace this section with the real attribution, and convert
-scripts/patch_pptx_viewer.js into a script that fetches the pinned upstream
-version before patching it (see the header of that script).
-
-If the file turns out to be original work by the copyright holder above, the
-unminified source should be committed and this section replaced with a note
-stating it is covered by this project's own MIT license.
+It is shipped pre-built and minified. Committing the unminified source would make
+it reviewable and modifiable by contributors, which is what an open-source release
+is normally expected to provide — worth doing, but not a licensing obstacle.

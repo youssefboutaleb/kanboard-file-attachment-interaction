@@ -1,20 +1,16 @@
 /**
  * Re-apply the local modifications to Assets/js/vendor/pptx-viewer.umd.js.
  *
- * ⚠️  UNRESOLVED PROVENANCE — see NOTICE.
- * The bundle this script edits carries no license banner, copyright, version or
- * upstream identifier, and it is committed to the repository in ALREADY-PATCHED
- * form. That makes this script unrunnable as written: it searches for the
- * pristine upstream snippets, which are no longer present.
+ * ⚠️  THIS SCRIPT NO LONGER RUNS, BY DESIGN.
+ * The bundle is first-party (MIT, see NOTICE) and is committed in ALREADY-PATCHED
+ * form, so the pristine snippets this script searches for are no longer present.
+ * Running it is a no-op that now exits non-zero rather than pretending to succeed.
  *
- * A reproducible vendor pipeline would instead:
- *   1. download a PINNED upstream release of the library,
- *   2. verify its checksum,
- *   3. apply these six edits to that pristine copy,
- *   4. write the result to Assets/js/vendor/.
- * Step 1 cannot be written until the upstream project and version are known.
+ * The right fix is to fold these six changes into the bundle's own source and
+ * rebuild, rather than patching a build artifact after the fact — at which point
+ * this file can be deleted outright.
  *
- * Until then this script is kept for the record of WHAT was changed and why —
+ * Until then it is kept for the record of WHAT was changed and why —
  * the six edits below are the plugin's PPTX rendering fixes (whitespace
  * preservation, paragraph child ordering and manual <br>, run breaks, paragraph
  * alignment, shape flipH/flipV, and the SVG transform for those flips).

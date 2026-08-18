@@ -20,16 +20,18 @@ the sandboxed-iframe HTML preview, the inline binary streaming route, and the Op
 
 ## Executive summary
 
-> ## READY WITH MINOR FIXES
+> ## READY
 
 Two **critical**, independently exploitable authorization defects were found and fixed, with
 regression tests proven to fail against the pre-fix source. Code quality, escaping discipline,
 architecture and test depth are genuinely above average for a Kanboard plugin.
 
-One blocker remains, and it is **not** a code problem: `Assets/js/vendor/pptx-viewer.umd.js`
-is redistributed with no license, copyright, version or upstream identifier. Until its
-provenance is established, this plugin should not be listed in the directory and no release
-containing that file should be published.
+The one blocker raised during the audit — an unattributed bundle in `Assets/js/vendor/` — was
+resolved when the maintainer confirmed `pptx-viewer.umd.js` is their own work. It now carries
+an MIT banner and a `NOTICE` entry. **No blockers remain.**
+
+Everything below is fixed unless explicitly marked otherwise. The remaining items are
+follow-ups, not obstacles to release or to directory submission.
 
 ---
 
@@ -91,16 +93,25 @@ satisfied the write gate. Core's `projectAccessMap` registration limited the edi
 `PROJECT_MEMBER`, so this was defence-in-depth rather than directly exploitable — but the
 plugin's own layer disagreed with core's. Write now requires `projectPermissionModel->isMember()`.
 
-### HIGH-2 · Licensing · Unattributed third-party code redistributed — **NOT FIXED (blocker)**
+### HIGH-2 · Licensing · Bundle redistributed with no license or attribution — **FIXED**
 
-`Assets/js/vendor/pptx-viewer.umd.js` (110 KB, minified) carries no license banner, no copyright,
-no version and no upstream URL — unlike its two siblings, which carry proper banners. It was
-committed wholesale in v0.9.0 and then rewritten in place by `scripts/patch_pptx_viewer.js`.
-Its origin could not be established from the file, the repository, or the commit history.
+**Problem.** `Assets/js/vendor/pptx-viewer.umd.js` (110 KB, minified) carried no license
+banner, no copyright, no version and no upstream URL — unlike its two siblings in the same
+directory, which carry proper banners. It is redistributed in every release archive.
 
-Redistributing it in every release archive exposes the project to a licensing complaint, and
-listing the plugin would extend that to the directory. **No attribution has been invented.**
-Recorded in `NOTICE`; `PackagingTest` now fails if any vendor bundle lacks a NOTICE entry.
+**Why it mattered.** Redistributing code of unknown origin risks a licensing complaint, and
+listing the plugin would have extended that risk to the directory. The audit deliberately did
+**not** invent an attribution: an unverifiable license claim is worse than an absent one.
+
+**Resolution.** The maintainer confirmed the file is **first-party** — their own work, covered
+by the project's MIT license. It now carries an MIT banner naming the copyright holder, and
+`NOTICE` records it as first-party rather than vendored.
+
+**The underlying lesson stands even though the answer was benign:** nothing in the repository
+said the file was first-party, and a minified, unbannered blob inside a directory named
+`vendor/` reads as someone else's code to every reviewer — which is exactly how it was read
+here. `PackagingTest::testBundledVendorJavaScriptIsAttributed()` now fails the build if any
+file in `Assets/js/vendor/` lacks a `NOTICE` entry.
 
 ### HIGH-3 · Licensing · License metadata contradicted the LICENSE file — **FIXED**
 
@@ -277,21 +288,28 @@ exercise real `.xlsx` parsing and had therefore **never run in CI**. They now do
 
 ## Remaining issues
 
-1. **`pptx-viewer.umd.js` provenance — BLOCKER.** Must be identified, banner restored, `NOTICE`
-   updated. Blocks both the release and the directory submission.
-2. **No browser-level test coverage.** Client-side behaviour is pinned textually (asserting the
-   shipped `.js` contains the expected calls), not executed. Adequate for a plugin this size and
-   consistent with existing practice, but the JS is genuinely untested.
-3. **Not verified in a live Kanboard.** All verification was static plus unit/integration. The
-   ownership gate and the real ACL checker should be exercised once against `docker compose up`
-   with two projects and a non-member user before tagging.
-4. **`src/` layout deviates from Kanboard's PSR-4 convention** (INFORMATIONAL-1) — works, but
-   worth a decision if you ever want first-class tooling compatibility.
-5. **Agent scaffolding still tracked** (INFORMATIONAL-4) — cosmetic, your call.
-6. **PHPStan 1.12 is ~13 months old.** Upgrading to 2.x is likely to surface new findings; a
-   deliberate, separate piece of work.
+None block release or submission. In rough priority order:
 
----
+1. **`pptx-viewer.umd.js` ships minified-only.** Now correctly licensed, but the source is not
+   in the repository, so contributors cannot read or modify it — and `scripts/patch_pptx_viewer.js`
+   exists precisely because six fixes had to be applied to the build artifact after the fact.
+   Committing the source and folding those six patches into it would let that script be deleted.
+   Housekeeping, not a defect.
+2. **It also sits in `Assets/js/vendor/` despite being first-party.** The banner and `NOTICE`
+   now say so, but the directory name still implies otherwise. Moving it would touch
+   `Plugin.php` and `office-viewer.js`; left alone deliberately, since renaming working asset
+   paths for tidiness is exactly the kind of change this audit was asked not to make.
+3. **No browser-level test coverage.** Client-side behaviour is pinned textually (asserting the
+   shipped `.js` contains the expected calls), never executed. Adequate for a plugin this size
+   and consistent with existing practice, but the JavaScript is genuinely untested.
+4. **Not yet verified in a live Kanboard.** All verification was static plus unit/integration.
+   The ownership gate and the real ACL checker should be exercised once against
+   `docker compose up` with two projects and a non-member user before tagging.
+5. **`src/` layout deviates from Kanboard's PSR-4 convention** (INFORMATIONAL-1) — works, but
+   worth a decision if first-class tooling compatibility ever matters.
+6. **Agent scaffolding still tracked** (INFORMATIONAL-4) — cosmetic.
+7. **PHPStan 1.12 is ~13 months old.** Upgrading to 2.x will likely surface new findings; a
+   deliberate, separate piece of work.
 
 ## Official directory readiness
 
@@ -306,15 +324,14 @@ directory schema exactly (all 15 fields, alphabetically ordered, inserting betwe
 
 **To submit, in order:**
 
-1. **Resolve the `pptx-viewer.umd.js` provenance blocker** and update `NOTICE`.
-2. Commit this work and push.
-3. `git tag v1.1.0 && git push origin v1.1.0` — the release workflow verifies the tag against
+1. Commit this work and push.
+2. `git tag v1.1.0 && git push origin v1.1.0` — the release workflow verifies the tag against
    `Plugin.php`, rebuilds the archive, extracts the changelog section and publishes the asset.
-4. Confirm the download URL returns HTTP 200, then install that exact asset into a clean
+3. Confirm the download URL returns HTTP 200, then install that exact asset into a clean
    Kanboard ≥ 1.2.23 **through the admin UI's remote installer** — that is the path
    `remote_install: true` promises, and the only way to prove the archive's directory shape.
-5. Open the `kanboard/website` PR using the prepared title and body.
+4. Open the `kanboard/website` PR using the prepared title and body.
 
 Note that Kanboard's documentation states there is **no code review and no approval process**
 for the directory — a merged PR publishes the entry as-is. Correctness is entirely the
-submitter's responsibility, which is why steps 1 and 4 are not optional.
+submitter's responsibility, which is why step 3 is not optional.
