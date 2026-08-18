@@ -1,0 +1,25 @@
+name: Feature request
+description: Suggest a capability for the plugin
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+    validations: { required: true }
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like it to do?
+    validations: { required: true }
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope check
+      options:
+        - label: This does not require modifying Kanboard core files
+        - label: I have checked docs/ROADMAP.md

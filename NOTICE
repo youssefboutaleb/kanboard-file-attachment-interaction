@@ -1,0 +1,71 @@
+FileInteractionCore — Kanboard plugin
+Copyright 2025 Youssef BOUTALEB
+
+This product is licensed under the MIT License. See the LICENSE file distributed
+with this work.
+
+================================================================================
+THIRD-PARTY SOFTWARE
+================================================================================
+
+This distribution bundles the following third-party JavaScript in
+Assets/js/vendor/. Each retains its own license; the terms below govern those
+files, not the Apache-2.0 license above.
+
+--------------------------------------------------------------------------------
+1. JSZip — Assets/js/vendor/jszip.min.js
+--------------------------------------------------------------------------------
+Version:   3.10.1
+Homepage:  https://github.com/Stuk/jszip
+Copyright: (c) 2009-2016 Stuart Knightley <stuart [at] stuartk.com>
+License:   Dual-licensed under the MIT license or GPLv3
+           https://github.com/Stuk/jszip/blob/main/LICENSE.markdown
+
+JSZip embeds pako (https://github.com/nodeca/pako), released under the MIT
+license.
+
+This project uses JSZip under the MIT option, which matches this project's own
+license.
+
+--------------------------------------------------------------------------------
+2. docx-preview — Assets/js/vendor/docx-preview.min.js
+--------------------------------------------------------------------------------
+Homepage:  https://github.com/VolodymyrBaydalka/docxjs
+Copyright: Volodymyr Baydalka
+License:   Apache License 2.0
+           https://github.com/VolodymyrBaydalka/docxjs/blob/master/LICENSE
+
+Note: docx-preview is Apache-2.0 while this plugin is MIT. That is fine — both are
+permissive and Apache-2.0 code may be redistributed inside an MIT-licensed work,
+provided its own license and attribution travel with it. This entry is that
+attribution. Do not relicense the file or strip its banner.
+
+--------------------------------------------------------------------------------
+3. pptx-viewer — Assets/js/vendor/pptx-viewer.umd.js
+--------------------------------------------------------------------------------
+Homepage:  UNRESOLVED
+Copyright: UNRESOLVED
+License:   UNRESOLVED
+
+*** UNRESOLVED PROVENANCE — DO NOT REDISTRIBUTE UNTIL CLOSED ***
+
+Unlike the two entries above, this file carries no license banner, no copyright
+notice, no version string and no upstream identifier. It exposes a global named
+`PPTXViewer` and was committed wholesale in release v0.9.0, after which
+scripts/patch_pptx_viewer.js rewrote six functions inside it in place.
+
+Its origin could not be established from the file, the repository, or the commit
+history, and no attribution has been invented for it here. Until the upstream
+project, version and license are identified and recorded in this file:
+
+  - the plugin must not be submitted to the Kanboard plugin directory, and
+  - release archives containing this file must not be published.
+
+To close this item: identify the upstream project, restore its license banner at
+the top of the file, replace this section with the real attribution, and convert
+scripts/patch_pptx_viewer.js into a script that fetches the pinned upstream
+version before patching it (see the header of that script).
+
+If the file turns out to be original work by the copyright holder above, the
+unminified source should be committed and this section replaced with a note
+stating it is covered by this project's own MIT license.

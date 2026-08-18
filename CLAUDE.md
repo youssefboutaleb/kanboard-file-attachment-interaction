@@ -149,15 +149,74 @@ This document defines the agentic workflow, automated quality gates, git hooks, 
 
 ---
 
+### Milestone 12: Contributability Audit & Security Hardening (100% RELEASED - v1.1.0)
+
+> **Scope note**: this milestone was an external-maintainer audit of the finished plugin,
+> not feature work. No feature was added, removed or redesigned.
+
+- [x] **Task 52: Object-Level Authorization (CRITICAL security fix)**
+  - Kanboard authorizes these routes with `projectAccessMap`, which `ProjectAuthorization`
+    evaluates against the `project_id` **in the URL** — it never inspects `file_id`. The
+    controllers loaded attachments with `getById($fileId)`, and only fell back to the row's
+    own `task_id`/`project_id` when the URL values were `0`. On the real pretty routes the
+    URL value always wins, so the attachment's true owner was **never compared to anything**.
+  - Result: any user with a role on any project could pair that project with a foreign
+    attachment id and read, stream, open in the editor, or **overwrite** a file from a
+    project they could not see.
+  - `HandlesAttachmentInteraction::assertAttachmentOwnership()` joins the two before any
+    bytes are read, on all four actions. Verified exploitable: 7 of the 12 new tests in
+    `tests/Unit/AttachmentAuthorizationTest.php` fail against the pre-fix source.
+- [x] **Task 53: Real ACL binding (CRITICAL security fix)**
+  - `PermissionService` defaulted to `MockPermissionChecker(true)` — an allow-everything
+    test stub — and **no controller ever injected anything else**, so the plugin's entire
+    ACL layer returned `true` for every runtime request. `docs/SECURITY.md` documented a
+    guarantee that did not exist.
+  - New `KanboardPermissionChecker` is backed by `projectPermissionModel` + `userSession`,
+    installed automatically by `createDefaultPermissionService()` whenever the container
+    provides them, and **fails closed**.
+  - `canUserWriteFile()` no longer aliases read: write now requires `isMember()`, so a
+    project VIEWER can read an attachment but not overwrite it.
+- [x] **Task 54: Metadata, licensing & packaging**
+  - `Plugin::getCompatibleVersion()` → `>=1.2.23`, derived by bisecting Kanboard releases:
+    `template:project-overview:documents:dropdown` exists in 1.2.23 and is **absent from
+    1.2.22**. Without the override the inherited default is `APP_VERSION`, which claims
+    compatibility with any core while the hook fails silently.
+  - Licensing was contradictory — the `LICENSE` file and the metadata disagreed, and the
+    license boilerplate placeholder was never filled in. All now **MIT**, matching the
+    LICENSE file, and `PackagingTest` fails if they drift apart again. `NOTICE` added for
+    the bundled vendor JS (docx-preview stays Apache-2.0 inside an MIT work, which is
+    permitted so long as its attribution travels with it).
+  - Packaging switched from an rsync **exclude** list to an **allow-list**: the old script
+    shipped `CLAUDE.md`, `AGENTS.md`, `implementation_plan.md`, `settings.json` and 154 KB
+    of `walkthrough.md` to end users. Build now fails if a dev file leaks in, if the
+    archive root entry is not `FileInteractionCore/`, or if `src/` references `tests/`.
+- [x] **Task 55: Dead code, forward compatibility & CI**
+  - Deleted `Assets/js/preview-language-selector.js`: a verbatim duplicate of the picker
+    handler in `preview-controls.js`. Both bound a delegated `change` listener, so one
+    language change fired **two** `KB.modal.replace()` calls.
+  - Removed `require_once __DIR__ . '/../../tests/stubs/BaseController.php'` from two
+    production controllers; the stub now loads from `tests/bootstrap.php`.
+  - Pinned `$escape` on `str_getcsv()`/`fputcsv()` — PHP 8.4 deprecates omitting it because
+    the default changes in PHP 9. Passing the **current** default preserves behaviour.
+  - CI gained PHPStan, `php -l`, PHP 8.4, and a job that builds and extracts the archive.
+    Added root `SECURITY.md` (with an advisory for < 1.1.0), issue/PR templates.
+  - `docs/kanboard-directory-submission.md` prepared; submission **blocked** on the
+    `pptx-viewer.umd.js` provenance issue recorded in `NOTICE`.
+- [x] **Task 56: Verification & Release v1.1.0**
+  - 770 tests / 2619 assertions, 0 skipped with `ext-zip`; PHPStan level 8 clean; green on
+    PHP 8.1, 8.2, 8.3 and 8.4.
+
+---
+
 ## 🛠️ Essential Commands & Agentic Scripts
 
 ```bash
-# Automated Agent Verification Pipeline (PHP Syntax, Composer, PHPStan Level 8, 755 Tests Passing)
+# Automated Agent Verification Pipeline (PHP Syntax, Composer, PHPStan Level 8, 770 Tests Passing)
 bash scripts/agent-verify.sh
 # or via composer:
 composer agent-verify
 
-# Test Execution via Docker (PHP 8.1 container - 755 Tests Passing)
+# Test Execution via Docker (PHP 8.1 container - 770 Tests Passing)
 docker run --rm -v $(pwd):/app -w /app php:8.1-cli vendor/bin/phpunit
 
 # Package Plugin Release
@@ -265,3 +324,50 @@ Every task executed by Claude or AI agents follows a 6-phase loop:
 55. **High-Fidelity PPTX Vector Rendering & Delegated Controls**: PowerPoint rendering in browser uses `pptx-viewer.umd.js` with vector SVG slide generation, theme color extraction, and shape geometry. Control handlers for slide deck switching (Prev/Next/Tabs) MUST use delegated event listeners on `document` so they function seamlessly in both AJAX modal containers and standalone new tabs.
 56. **Vendor Asset Integrity and Safe JS Patching**: Vendor assets in `Assets/js/vendor/` (`jszip.min.js`, `docx-preview.min.js`, `pptx-viewer.umd.js`) must exist on disk so Kanboard's `AssetHelper::js()` (`filemtime`) does not emit warnings. When applying AST/string modifications to minified JS bundles, always pass a callback `() => replacement` to `.replace()`, preventing minified `$` identifiers from expanding special regex replacement sequences (`$&`) that inject syntax errors into the bundle.
 
+57. **`projectAccessMap` Authorizes the URL's PROJECT, Never the FILE**: `ProjectAuthorization`
+    checks that the caller holds a role on the `project_id` in the request. It has no idea
+    `file_id` exists. Any controller that resolves an object by id must therefore prove that
+    object belongs to the project the ACL just approved — `getById($fileId)` alone is an IDOR.
+    `HandlesAttachmentInteraction::assertAttachmentOwnership()` is that gate, and the pattern
+    `$taskId = $taskId > 0 ? $taskId : $file['task_id']` is precisely what hides the bug: it
+    reads like a fallback, but on the real routes the URL value always wins and the row's
+    ownership columns are never consulted.
+58. **A Default Mock Is a Production Backdoor**: `PermissionService::__construct()` defaulted
+    to `MockPermissionChecker(true)`, and because every controller wrote
+    `$permissionService ?? new PermissionService()`, the allow-everything stub *was* the
+    runtime implementation for the plugin's whole life. A test double must never be the
+    default of a security component. Prefer a required constructor argument, or — as here —
+    a factory that installs the real checker whenever the container can supply it, and make
+    the checker **fail closed** when it cannot answer.
+59. **`getCompatibleVersion()` Defaults to APP_VERSION, Which Always Passes**: omitting the
+    override does not mean "no constraint", it means `Version::isCompatible(APP_VERSION,
+    APP_VERSION)` — true on every core. Combined with hooks failing silently when they do not
+    exist, an unsupported core produces a half-working plugin and no error. Pin the floor to
+    the release that introduced the newest API used; bisect the tags rather than guessing.
+60. **Package With an Allow-List, Never an Exclude-List**: the exclude-based rsync shipped
+    every file nobody remembered to exclude — including 154 KB of agent notes. An allow-list
+    fails safe: a new root file is absent from the release until someone adds it deliberately.
+    Assert on the archive too (`PackagingTest`), because the ZIP is the only thing a
+    remote-install user ever receives.
+61. **Kanboard Autoloads `Kanboard\Plugin\` FROM `PLUGINS_DIR`**: `Loader::scan()` registers
+    `addPsr4('Kanboard\Plugin\', PLUGINS_DIR)`, so the convention is
+    `plugins/<Name>/Controller/Foo.php`. This plugin keeps sources in `src/` and compensates
+    with its own `spl_autoload_register()` inside `Plugin.php`, which runs before any
+    controller resolves. It works and was left alone — but it is a deviation, and anything
+    relying on Kanboard's own PSR-4 mapping (a tool scanning `plugins/*/Controller/`) will not
+    find these classes.
+62. **Production Code Must Never `require_once` From `tests/`**: two controllers pulled in
+    `tests/stubs/BaseController.php` behind a `class_exists()` guard. Inside Kanboard the
+    branch never fires, so it looked harmless — but `tests/` is excluded from the release
+    archive, so the fallback could only ever fatal. Test scaffolding belongs in the PHPUnit
+    bootstrap.
+63. **A Patch Script That Cannot Fail Is Not a Build Step**: `patch_pptx_viewer.js` printed
+    "orig not found!" six times and still exited 0 with "ALL PPTX FIXES APPLIED
+    SUCCESSFULLY!". Because the vendored bundle is committed already-patched, the script has
+    been unrunnable since the day it was written and nothing noticed. Vendor patching must
+    fetch a pinned upstream, verify a checksum, patch that, and exit non-zero on any miss.
+64. **Vendor Bundles Need Provenance Before They Need Patches**: `jszip.min.js` and
+    `docx-preview.min.js` carry license banners; `pptx-viewer.umd.js` carries nothing — no
+    license, copyright, version or upstream URL — and is redistributed in every release.
+    Record provenance in `NOTICE` at the moment a bundle is added; afterwards it may be
+    unknowable. `PackagingTest` now fails if a file in `Assets/js/vendor/` has no NOTICE entry.

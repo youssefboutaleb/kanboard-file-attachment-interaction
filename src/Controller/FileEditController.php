@@ -6,6 +6,7 @@ namespace Kanboard\Plugin\FileInteractionCore\Controller;
 
 use Kanboard\Controller\BaseController;
 use Kanboard\Plugin\FileInteractionCore\Controller\Concerns\HandlesAttachmentInteraction;
+use Kanboard\Plugin\FileInteractionCore\Exception\AccessDeniedException;
 use Kanboard\Plugin\FileInteractionCore\Service\CsvParserService;
 use Kanboard\Plugin\FileInteractionCore\Service\ExcelParserService;
 use Kanboard\Plugin\FileInteractionCore\Service\ExcelWriterService;
@@ -52,7 +53,7 @@ class FileEditController extends BaseController
             $this->container = $container;
         }
 
-        $this->permissionService = $permissionService ?? new PermissionService();
+        $this->permissionService = $permissionService ?? $this->createDefaultPermissionService();
         $this->editValidationService = $editValidationService ?? new FileEditValidationService();
         $this->versionService = $versionService ?? new FileVersionService();
         $this->excelParser = $excelParser ?? new ExcelParserService(1000, 100);
@@ -91,6 +92,15 @@ class FileEditController extends BaseController
             if (!$file) {
                 return $this->renderErrorModal(true, 'File not found.', 404, 'not_found');
             }
+
+            // The route ACL only proved a role on the URL's project; this proves the
+            // attachment is actually part of it before its bytes are handed back.
+            try {
+                $this->assertAttachmentOwnership((array) $file, $taskId, $projectId);
+            } catch (AccessDeniedException $e) {
+                return $this->renderErrorModal(true, $e->getMessage(), 403, 'access_denied');
+            }
+
             $filename = (string) ($file['name'] ?? '');
             $rawContent = (string) $this->objectStorage->get($file['path'] ?? '');
         }
@@ -241,6 +251,15 @@ class FileEditController extends BaseController
             if (!$file) {
                 return $this->renderErrorModal(true, 'File not found.', 404, 'not_found');
             }
+
+            // Highest-stakes instance of the gate: without it a member of any project
+            // could overwrite an attachment belonging to a project they cannot see.
+            try {
+                $this->assertAttachmentOwnership((array) $file, $taskId, $projectId);
+            } catch (AccessDeniedException $e) {
+                return $this->renderErrorModal(true, $e->getMessage(), 403, 'access_denied');
+            }
+
             $filename = (string) ($file['name'] ?? '');
         }
 
@@ -275,7 +294,7 @@ class FileEditController extends BaseController
                     $delimiter = $normalizedExt === 'tsv' ? "\t" : ',';
                     foreach ($firstSheetRows as $row) {
                         if (is_array($row)) {
-                            fputcsv($fp, array_map('strval', $row), $delimiter);
+                            fputcsv($fp, array_map('strval', $row), $delimiter, '"', "\\");
                         }
                     }
                     rewind($fp);

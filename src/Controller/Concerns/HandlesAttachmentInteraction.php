@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace Kanboard\Plugin\FileInteractionCore\Controller\Concerns;
 
+use Kanboard\Plugin\FileInteractionCore\Exception\AccessDeniedException;
+use Kanboard\Plugin\FileInteractionCore\Service\KanboardPermissionChecker;
+use Kanboard\Plugin\FileInteractionCore\Service\PermissionService;
+
 /**
  * Trait providing shared attachment resolution, container probing, and rendering operations.
  */
@@ -62,6 +66,89 @@ trait HandlesAttachmentInteraction
             return (int) $this->taskFinderModel->getProjectId($taskId);
         } catch (\Throwable $e) {
             return 0;
+        }
+    }
+
+    /**
+     * Build the PermissionService a controller should use when none was injected.
+     *
+     * Inside Kanboard the container carries `projectPermissionModel`, so the real
+     * ACL checker is installed and membership is genuinely enforced. Outside it —
+     * unit tests constructing a controller with no container, or a bare container —
+     * there is nothing to ask, so the historical mock stands in. Production always
+     * takes the first branch; the mock can no longer reach a real request.
+     */
+    protected function createDefaultPermissionService(): PermissionService
+    {
+        if ($this->hasService('projectPermissionModel')) {
+            return new PermissionService(new KanboardPermissionChecker($this->container));
+        }
+
+        return new PermissionService();
+    }
+
+    /**
+     * Assert that the attachment actually belongs to the task/project named in the URL.
+     *
+     * WHY THIS IS REQUIRED, AND WHY THE ROUTE ACL IS NOT ENOUGH: Kanboard authorizes
+     * these routes through `projectAccessMap`, which `ProjectAuthorization` evaluates
+     * against the `project_id` **in the URL** — it proves the caller holds a role on
+     * *that* project and nothing more. It never inspects `file_id`. Meanwhile every
+     * controller here loads the attachment with `getById($fileId)`, a lookup keyed on
+     * the id alone.
+     *
+     * Without this gate the two facts are never joined, so any member of any project
+     * can name their own project in the path and any attachment id in the query:
+     *
+     *     /b/<project the caller can access>/task/<any>/file/<file in a FOREIGN project>/preview
+     *
+     * The ACL passes, `getById()` happily returns the foreign row, and its bytes are
+     * rendered (or, on the edit route, overwritten). That is a cross-project
+     * disclosure and, via `FileEditController::update()`, a cross-project write.
+     *
+     * The check joins them: the row's own ownership columns must match the URL. A row
+     * that declares no owner cannot be cross-checked and is left to the route ACL —
+     * those columns are database-controlled, never request-controlled, so an attacker
+     * cannot blank them to slip through.
+     *
+     * @param array<string, mixed> $file Attachment row from task_files/project_files.
+     *
+     * @throws AccessDeniedException when the row belongs to a different task or project.
+     */
+    protected function assertAttachmentOwnership(array $file, int $taskId, int $projectId, string $source = 'task'): void
+    {
+        if ($source === 'project') {
+            $ownerProjectId = (int) ($file['project_id'] ?? 0);
+
+            if ($ownerProjectId > 0 && $projectId > 0 && $ownerProjectId !== $projectId) {
+                throw new AccessDeniedException(
+                    'Access Denied: this attachment does not belong to the requested project.'
+                );
+            }
+
+            return;
+        }
+
+        $ownerTaskId = (int) ($file['task_id'] ?? 0);
+
+        if ($ownerTaskId > 0 && $taskId > 0 && $ownerTaskId !== $taskId) {
+            throw new AccessDeniedException(
+                'Access Denied: this attachment does not belong to the requested task.'
+            );
+        }
+
+        // The task the attachment really hangs off must also sit in the project the
+        // URL claimed, otherwise the role check ran against the wrong project.
+        $effectiveTaskId = $ownerTaskId > 0 ? $ownerTaskId : $taskId;
+
+        if ($effectiveTaskId > 0 && $projectId > 0) {
+            $owningProjectId = $this->resolveProjectIdFromTask($effectiveTaskId);
+
+            if ($owningProjectId > 0 && $owningProjectId !== $projectId) {
+                throw new AccessDeniedException(
+                    'Access Denied: this attachment does not belong to the requested project.'
+                );
+            }
         }
     }
 

@@ -8,11 +8,13 @@ on:
 
 jobs:
   test:
+    name: Tests (PHP ${{ matrix.php-version }})
     runs-on: ubuntu-latest
 
     strategy:
+      fail-fast: false
       matrix:
-        php-version: ['8.1', '8.2', '8.3']
+        php-version: ['8.1', '8.2', '8.3', '8.4']
 
     steps:
       - name: Checkout code
@@ -22,6 +24,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php-version }}
+          extensions: zip, dom, mbstring
           coverage: none
 
       - name: Validate composer.json
@@ -30,5 +33,60 @@ jobs:
       - name: Install dependencies
         run: composer install --prefer-dist --no-progress
 
+      - name: Lint every PHP source file
+        run: find Plugin.php src Template tests -name '*.php' -print0 | xargs -0 -n1 -P4 php -l > /dev/null
+
       - name: Run PHPUnit test suite
         run: vendor/bin/phpunit
+
+  static-analysis:
+    name: PHPStan (level 8)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          coverage: none
+
+      - run: composer install --prefer-dist --no-progress
+
+      # php:8.1 caps memory at 128M, which src/ exceeds. Without an explicit limit
+      # the failure surfaces as "Child process error (exit code 255)" with no
+      # mention of memory at all.
+      - name: Run PHPStan
+        run: vendor/bin/phpstan analyse src --level=8 --memory-limit=512M --no-progress
+
+  package:
+    name: Release archive
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          coverage: none
+
+      # Building the archive on every PR is what keeps the allow-list honest: the
+      # script fails if a development file leaks in, if the root entry is not
+      # FileInteractionCore/, or if src/ references the excluded tests/ directory.
+      - name: Build plugin archive
+        run: bash scripts/package-plugin.sh
+
+      - name: Confirm the archive installs as Kanboard expects
+        run: |
+          VERSION=$(sed -n "/function getPluginVersion/,/}/s/.*return '\([^']*\)'.*/\1/p" Plugin.php | head -1)
+          mkdir -p /tmp/plugins && unzip -q "dist/FileInteractionCore-${VERSION}.zip" -d /tmp/plugins
+          test -f /tmp/plugins/FileInteractionCore/Plugin.php
+          php -r 'exit(0);'
+          echo "Extracted layout OK"
+
+      - name: Upload archive as build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FileInteractionCore-archive
+          path: dist/*.zip

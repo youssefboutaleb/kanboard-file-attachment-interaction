@@ -327,8 +327,16 @@ class LanguageSelectorTemplateTest extends TestCase
         $plugin = (string) file_get_contents(__DIR__ . '/../../Plugin.php');
 
         $this->assertStringNotContainsString('<script', $selectorTemplate);
-        $this->assertStringContainsString('plugins/FileInteractionCore/Assets/js/preview-language-selector.js', $plugin);
-        $this->assertFileExists(__DIR__ . '/../../Assets/js/preview-language-selector.js');
+        $this->assertStringContainsString('plugins/FileInteractionCore/Assets/js/preview-controls.js', $plugin);
+        $this->assertFileExists(__DIR__ . '/../../Assets/js/preview-controls.js');
+
+        // preview-language-selector.js was a verbatim second copy of the picker
+        // handler. Both files bound their own delegated `change` listener on the
+        // document, so one language change fired TWO KB.modal.replace() calls and
+        // the modal was fetched and rebuilt twice. Registering it again would
+        // silently restore that.
+        $this->assertStringNotContainsString('preview-language-selector.js', $plugin);
+        $this->assertFileDoesNotExist(__DIR__ . '/../../Assets/js/preview-language-selector.js');
     }
 
     /**
@@ -339,7 +347,7 @@ class LanguageSelectorTemplateTest extends TestCase
      */
     public function testPickerScriptUsesModalReplaceWithNavigationFallback(): void
     {
-        $script = (string) file_get_contents(__DIR__ . '/../../Assets/js/preview-language-selector.js');
+        $script = (string) file_get_contents(__DIR__ . '/../../Assets/js/preview-controls.js');
 
         $this->assertStringContainsString('data-fic-language-select', $script);
         $this->assertStringContainsString("addEventListener('change'", $script);

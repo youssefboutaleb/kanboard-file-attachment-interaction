@@ -4,11 +4,6 @@ declare(strict_types=1);
 
 namespace Kanboard\Plugin\FileInteractionCore\Controller;
 
-// Require stub if running standalone outside Kanboard runtime
-if (!class_exists('Kanboard\Controller\BaseController')) {
-    require_once __DIR__ . '/../../tests/stubs/BaseController.php';
-}
-
 use Kanboard\Controller\BaseController;
 use Kanboard\Plugin\FileInteractionCore\Controller\Concerns\HandlesAttachmentInteraction;
 use Kanboard\Plugin\FileInteractionCore\Core\Contract\StreamEmitterInterface;
@@ -101,7 +96,7 @@ class FileStreamController extends BaseController
             parent::__construct($container);
         }
 
-        $this->permissionService = $permissionService ?? new PermissionService();
+        $this->permissionService = $permissionService ?? $this->createDefaultPermissionService();
         $this->validationService = $validationService ?? new FileValidationService();
         $this->emitter = $emitter ?? new HttpStreamEmitter();
     }
@@ -153,6 +148,15 @@ class FileStreamController extends BaseController
         }
 
         if (!empty($file) && is_array($file)) {
+            // Join file_id to the URL's task/project BEFORE reading any bytes, so a
+            // foreign attachment is refused rather than streamed. See
+            // HandlesAttachmentInteraction::assertAttachmentOwnership().
+            try {
+                $this->assertAttachmentOwnership($file, $taskId, $projectId, $source);
+            } catch (AccessDeniedException $e) {
+                return $this->emitFailure($e);
+            }
+
             $taskId = $taskId > 0 ? $taskId : (int) ($file['task_id'] ?? 0);
             $projectId = $projectId > 0 ? $projectId : (int) ($file['project_id'] ?? 0);
             $filename = $filename ?? ($file['name'] ?? null);

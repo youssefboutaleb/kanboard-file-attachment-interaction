@@ -114,8 +114,34 @@ flowchart TD
 - **Threat**: Cross-Site Request Forgery modifying attachment contents or overwriting project files.
 - **Mitigation**:
   - `FileEditController::update()` requires valid CSRF tokens validated against Kanboard's `Token` service.
-  - Write permissions require `PermissionService::canUserWriteFile()`, which verifies project member privileges.
+  - Write permissions require `PermissionService::canUserWriteFile()`, which — since v1.1.0 —
+    resolves to `KanboardPermissionChecker::canWriteProject()` and tests
+    `projectPermissionModel->isMember()`. Read access is deliberately **not** sufficient:
+    a project viewer may open an attachment but must not overwrite it.
   - Pre-save validation (`FileEditValidationService`) checks JSON syntax and enforce size limits before writing to storage.
+
+### 8. Object-Level Authorization for Attachments
+
+- **Threat**: Kanboard authorizes these routes with `projectAccessMap`, which
+  `ProjectAuthorization` evaluates against the `project_id` **carried in the URL**. It
+  proves the caller holds a role on *that* project and inspects nothing about `file_id`.
+  Because the controllers resolve attachments with `getById($fileId)` — keyed on the id
+  alone — a caller could pair a project they legitimately belong to with a foreign
+  attachment id and reach a file from a project they cannot see.
+- **Mitigation**: `HandlesAttachmentInteraction::assertAttachmentOwnership()` joins the two
+  facts before any bytes are read, on all four actions (`preview`, `stream`, `edit`,
+  `update`). The attachment row's own `task_id` / `project_id` must match the URL, and the
+  owning task must sit in the project whose role was checked.
+- **Assumption**: the ownership columns come from the database, never from the request, so
+  they cannot be forged by a caller. A row that declares no owner cannot be cross-checked
+  and is left to the route ACL alone.
+- **Regression cover**: `tests/Unit/AttachmentAuthorizationTest.php`.
+
+> **History**: both this gate and the `isMember()` write check were introduced in
+> **v1.1.0**. Before that release `PermissionService` defaulted to
+> `MockPermissionChecker(true)` — a test stub that approves everything — and no controller
+> injected an alternative, so the plugin's own ACL layer approved every request at runtime.
+> Installations older than v1.1.0 should be upgraded.
 
 ---
 
@@ -126,6 +152,8 @@ Before proposing code changes:
 - [ ] Is all template output wrapped in `htmlspecialchars()` or `$this->escapeHtml()`?
 - [ ] Are path traversal sequences (`..`, `\0`) sanitized with `basename()`?
 - [ ] Are ACL permissions verified prior to accessing storage records?
+- [ ] Is the attachment confirmed to BELONG to the task/project in the URL, not merely fetched by id?
+- [ ] Does every new permission path fail **closed** when the models it needs are unavailable?
 - [ ] Are XML parser instances configured with `LIBXML_NONET`?
 - [ ] Are file size caps checked before buffering full attachment contents?
 - [ ] Are inline streaming responses secured with `frame-ancestors 'self'` and `nosniff`?

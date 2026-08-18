@@ -337,3 +337,71 @@ class FakeHelper
         $this->flash = new FakeFlash();
     }
 }
+
+/**
+ * Maps task ids to the project that owns them, like Kanboard's TaskFinderModel.
+ *
+ * This is what lets a test express "file 999 hangs off a task in ANOTHER project",
+ * which is the shape of the cross-project attachment access the ownership gate
+ * exists to refuse.
+ */
+class FakeTaskFinder
+{
+    /**
+     * @var array<int, int>
+     */
+    private array $taskToProject;
+
+    /**
+     * @param array<int, int> $taskToProject
+     */
+    public function __construct(array $taskToProject = [])
+    {
+        $this->taskToProject = $taskToProject;
+    }
+
+    public function getProjectId(int $taskId): int
+    {
+        return $this->taskToProject[$taskId] ?? 0;
+    }
+}
+
+/**
+ * Membership oracle mirroring Kanboard's ProjectPermissionModel.
+ *
+ * `isUserAllowed()` is read access (viewers included); `isMember()` is the narrower
+ * write test. Keeping them separate is what makes the viewer-cannot-overwrite
+ * behaviour testable.
+ */
+class FakeProjectPermissionModel
+{
+    /**
+     * @var array<string, bool>
+     */
+    private array $allowed;
+
+    /**
+     * @var array<string, bool>
+     */
+    private array $members;
+
+    /**
+     * @param array<string, bool> $allowed Keyed "projectId:userId".
+     * @param array<string, bool> $members Keyed "projectId:userId".
+     */
+    public function __construct(array $allowed = [], array $members = [])
+    {
+        $this->allowed = $allowed;
+        $this->members = $members;
+    }
+
+    public function isUserAllowed(int $projectId, int $userId): bool
+    {
+        return $this->allowed["{$projectId}:{$userId}"] ?? false;
+    }
+
+    public function isMember(int $projectId, int $userId): bool
+    {
+        return $this->members["{$projectId}:{$userId}"] ?? false;
+    }
+}

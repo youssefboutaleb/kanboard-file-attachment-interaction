@@ -1,0 +1,54 @@
+name: Bug report
+description: Something in the plugin behaves incorrectly
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Do not report security vulnerabilities here.** Use
+        Security → Advisories → Report a vulnerability instead.
+  - type: input
+    id: plugin-version
+    attributes:
+      label: Plugin version
+      description: Settings → Plugins, or Plugin.php::getPluginVersion()
+      placeholder: "1.1.0"
+    validations: { required: true }
+  - type: input
+    id: kanboard-version
+    attributes:
+      label: Kanboard version
+      description: Settings → About
+      placeholder: "1.2.53"
+    validations: { required: true }
+  - type: input
+    id: php-version
+    attributes:
+      label: PHP version
+      placeholder: "8.2.15"
+    validations: { required: true }
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened, and what did you expect instead?
+    validations: { required: true }
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Attach a .xlsx file to a task
+        2. Open the attachment menu and choose Preview
+        3. ...
+    validations: { required: true }
+  - type: input
+    id: file-type
+    attributes:
+      label: Affected file type
+      placeholder: ".xlsx, .pdf, .md …"
+  - type: textarea
+    id: logs
+    attributes:
+      label: Browser console and Kanboard logs
+      description: Console errors matter — most UI faults in this plugin are CSP or asset-loading related.
+      render: shell

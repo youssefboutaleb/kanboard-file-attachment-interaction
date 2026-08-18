@@ -63,10 +63,17 @@ class PluginTest extends TestCase
     public function testPluginMetadata(): void
     {
         $this->assertSame('FileInteractionCore', $this->plugin->getPluginName());
-        $this->assertSame('1.0.1', $this->plugin->getPluginVersion());
+        $this->assertSame('1.1.0', $this->plugin->getPluginVersion());
         $this->assertSame('Youssef BOUTALEB', $this->plugin->getPluginAuthor());
         $this->assertSame('https://github.com/youssefboutaleb/kanboard-file-attachment-interaction', $this->plugin->getPluginHomepage());
         $this->assertNotEmpty($this->plugin->getPluginDescription());
+
+        // Kanboard's Loader refuses to initialize a plugin whose compatibility
+        // expression does not match APP_VERSION. Without an override the inherited
+        // default is APP_VERSION itself, which claims compatibility with whatever
+        // core happens to be running — including releases predating the hooks this
+        // plugin attaches to.
+        $this->assertSame('>=1.2.23', $this->plugin->getCompatibleVersion());
     }
 
     public function testPluginInitialization(): void

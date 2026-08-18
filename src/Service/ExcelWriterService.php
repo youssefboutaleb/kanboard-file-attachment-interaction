@@ -25,7 +25,10 @@ class ExcelWriterService
             if ($line === '' && count($rows) > 0 && end($lines) === $line) {
                 continue;
             }
-            $csvRow = str_getcsv($line);
+            // $enclosure/$escape pinned to the current PHP defaults: 8.4 deprecates
+            // omitting $escape because PHP 9 changes it, and this parser must keep
+            // round-tripping exactly the CSV it produces today.
+            $csvRow = str_getcsv($line, ',', '"', "\\");
             $sanitizedRow = [];
             foreach ($csvRow as $cell) {
                 $sanitizedRow[] = (string) $cell;
@@ -63,7 +66,7 @@ class ExcelWriterService
         }
 
         foreach ($rows as $row) {
-            fputcsv($fp, $row);
+            fputcsv($fp, $row, ',', '"', "\\");
         }
 
         rewind($fp);

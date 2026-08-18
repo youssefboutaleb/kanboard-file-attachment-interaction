@@ -34,9 +34,26 @@ class PermissionService
         return $this->checker->canReadFile($projectId, $taskId, $fileId, $userId);
     }
 
+    /**
+     * Write access to an attachment.
+     *
+     * Read access is necessary but NOT sufficient: a project viewer can see a task's
+     * attachments and must not be able to overwrite them. When the installed checker
+     * can answer the stronger question it is asked; `PermissionCheckerInterface` does
+     * not declare the method, so checkers that predate it (and the test mock) keep
+     * their previous read-equivalent behaviour rather than breaking.
+     */
     public function canUserWriteFile(int $projectId, int $taskId, int $fileId, ?int $userId = null): bool
     {
-        return $this->canUserReadFile($projectId, $taskId, $fileId, $userId);
+        if (!$this->canUserReadFile($projectId, $taskId, $fileId, $userId)) {
+            return false;
+        }
+
+        if (method_exists($this->checker, 'canWriteProject')) {
+            return (bool) $this->checker->canWriteProject($projectId, $userId);
+        }
+
+        return true;
     }
 
     /**

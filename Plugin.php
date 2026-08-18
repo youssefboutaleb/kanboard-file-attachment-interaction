@@ -70,11 +70,6 @@ class Plugin extends Base
             'plugins/FileInteractionCore/Assets/js/preview-controls.js'
         );
 
-        $this->template->hook->attach(
-            'template:layout:js',
-            'plugins/FileInteractionCore/Assets/js/preview-language-selector.js'
-        );
-
         // 5. Register the live editor script.
         $this->template->hook->attach(
             'template:layout:js',
@@ -132,11 +127,31 @@ class Plugin extends Base
 
     public function getPluginVersion()
     {
-        return '1.0.1';
+        return '1.1.0';
     }
 
     public function getPluginHomepage()
     {
         return 'https://github.com/youssefboutaleb/kanboard-file-attachment-interaction';
+    }
+
+    /**
+     * Minimum Kanboard version this plugin runs on.
+     *
+     * Kanboard's Loader refuses to initialize a plugin whose compatibility
+     * expression does not match APP_VERSION, so declaring this is what turns an
+     * install on an unsupported core into a clean "not compatible" notice instead
+     * of a fatal error deep inside a hook.
+     *
+     * The floor is set by `template:project-overview:documents:dropdown`, which
+     * core only gained in 1.2.23 (it is absent from 1.2.22). Attaching to a hook
+     * that does not exist fails silently, so an older core would drop the project
+     * attachment entry with no diagnostic. Every other API the plugin touches —
+     * `projectAccessMap`, `Role::PROJECT_VIEWER`, `KB.modal.replace()` — predates
+     * that release.
+     */
+    public function getCompatibleVersion()
+    {
+        return '>=1.2.23';
     }
 }

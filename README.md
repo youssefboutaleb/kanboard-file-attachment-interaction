@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/youssefboutaleb/kanboard-file-attachment-interaction/actions/workflows/ci.yml/badge.svg)](https://github.com/youssefboutaleb/kanboard-file-attachment-interaction/actions)
 ![PHP Version](https://img.shields.io/badge/php-%3E%3D8.1-8892BF.svg)
-![Kanboard Version](https://img.shields.io/badge/kanboard-%3E%3D1.2.0-blue.svg)
+![Kanboard Version](https://img.shields.io/badge/kanboard-%3E%3D1.2.23-blue.svg)
 ![Static Analysis](https://img.shields.io/badge/PHPStan-Level%208-brightgreen.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
@@ -98,16 +98,31 @@ flowchart TD
 
 ---
 
+## ✅ Requirements
+
+| Requirement | Version | Notes |
+|---|---|---|
+| **Kanboard** | **≥ 1.2.23** | The floor is set by the `template:project-overview:documents:dropdown` hook, which core gained in 1.2.23 (it is absent from 1.2.22). `Plugin::getCompatibleVersion()` declares this, so an older core refuses the plugin cleanly instead of silently dropping the project-attachment menu entry. |
+| **PHP** | **≥ 8.1** | The source uses `match`, `str_contains` and `?->`. |
+| PHP `zip` extension | required | OpenXML parsing (`.docx`, `.pptx`, `.xlsx`) and Kanboard's own remote plugin installer. |
+| PHP `dom` / `libxml` | required | OpenXML parsing. Parsers run with `LIBXML_NONET`. |
+| PHP `mbstring` | recommended | Correct multibyte truncation in previews. |
+
+No database schema, no migrations, and no configuration are required — the plugin adds no
+tables and reads no settings. Nothing needs to be enabled after installation.
+
+---
+
 ## 📦 Installation Guide
 
 ### Option 1: Install from GitHub Release (Recommended)
 
 1. Navigate to the [Releases](https://github.com/youssefboutaleb/kanboard-file-attachment-interaction/releases) page.
-2. Download the latest release archive: `FileInteractionCore-v0.9.0.zip`.
+2. Download the latest release archive: `FileInteractionCore-1.1.0.zip`.
 3. Extract the archive into your Kanboard `plugins/` directory:
    ```bash
    cd /path/to/kanboard/plugins
-   unzip /path/to/FileInteractionCore-v0.9.0.zip
+   unzip /path/to/FileInteractionCore-1.1.0.zip
    ```
 4. Ensure the folder name inside `plugins/` is **`FileInteractionCore`**:
    ```bash
@@ -143,10 +158,81 @@ git clone https://github.com/youssefboutaleb/kanboard-file-attachment-interactio
 cd FileInteractionCore
 
 # Launch Kanboard container with plugin mounted
-docker-compose up -d
+docker compose up -d
 ```
 
-Open your browser at `http://localhost:8080` (default login: `admin` / `admin`).
+Open your browser at `http://localhost:8085` (default login: `admin` / `admin`). The
+repository is bind-mounted into the container, so edits are picked up on reload.
+
+---
+
+## ⬆️ Upgrading
+
+The plugin stores no data of its own, so upgrading is a straight directory replacement:
+
+```bash
+cd /path/to/kanboard/plugins
+rm -rf FileInteractionCore                       # no plugin data is lost
+unzip /path/to/FileInteractionCore-1.1.0.zip
+chown -R www-data:www-data FileInteractionCore
+```
+
+Confirm the new version under **Settings → Plugins**. Clear the browser cache if a
+control looks stale — Kanboard fingerprints asset URLs by `filemtime`, so a restored
+backup with old timestamps can serve cached JavaScript.
+
+> **Upgrading from any version below 1.1.0 is a security update.** Releases before 1.1.0
+> did not verify that an attachment belonged to the task and project named in the URL, and
+> their permission layer approved every request at runtime. See [CHANGELOG.md](CHANGELOG.md).
+
+---
+
+## 🗑️ Uninstallation
+
+```bash
+rm -rf /path/to/kanboard/plugins/FileInteractionCore
+```
+
+That is the whole procedure. The plugin creates no tables, writes no settings and leaves
+no rows behind; task attachments are Kanboard's own and are untouched. Once the directory
+is gone, attachment menus revert to core's built-in behaviour.
+
+---
+
+## ⚠️ Limitations
+
+Worth knowing before installing:
+
+- **Images, audio and video are deliberately excluded.** Core already renders them, and
+  keeping them out guarantees no URL can route active content (notably `.svg`) into a
+  preview path.
+- **Previews are capped.** Text formats truncate at 500 KB; PDFs are refused above 10 MB.
+  An attachment whose recorded size exceeds the ceiling is never read into memory at all —
+  the notice is answered from metadata.
+- **The editor is not collaborative.** Two people editing the same attachment is
+  last-write-wins; there is no locking and no merge.
+- **Only text-ish formats are editable** — plus spreadsheets through the grid editor.
+  Saving an `.xlsx` rewrites it from the grid, so anything the parser does not model
+  (formulas, charts, images, macros, conditional formatting) is **not preserved**. Keep a
+  copy before editing a spreadsheet that carries more than values.
+- **DOCX/PPTX previews are renderings, not editors.** They are read-only.
+- **Legacy binary Office formats** (`.doc`, `.ppt`, `.xls` in the pre-2007 OLE2 layout)
+  are detected and offered as downloads rather than parsed.
+- **`.svg` is never previewed or streamed inline**, by design.
+
+---
+
+## 🔧 Troubleshooting
+
+| Symptom | Cause and fix |
+|---|---|
+| Plugin missing from **Settings → Plugins** | The directory must be named exactly `FileInteractionCore`; Kanboard derives the plugin class from the folder name. Extracting a GitHub source archive produces `kanboard-file-attachment-interaction-1.1.0/` — rename it. |
+| Listed as **not compatible** | Your Kanboard is older than 1.2.23. Check **Settings → About**. |
+| Preview entry missing from the attachment menu | Core owns images/audio/video and the plugin does not attach to them. For other formats, confirm the web server user can read the plugin directory. |
+| PDF shows "Inline PDF viewing is not supported" | The embedded viewer needs the plugin's own `/stream` route, which replaces core's `X-Frame-Options: DENY` with `frame-ancestors 'self'`. A reverse proxy adding its own `X-Frame-Options` will re-break it — drop that header for Kanboard, or set `ENABLE_XFRAME` to `false` in `config.php`. |
+| Controls do nothing, console shows CSP errors | An inline `<script>` has been introduced somewhere. Kanboard's CSP is `default-src 'self'` without `'unsafe-inline'`, and modal content is injected with `innerHTML`, which never executes injected scripts. All behaviour must ship as a file registered on `template:layout:js`. |
+| "Access Denied: this attachment does not belong to…" | Working as intended since 1.1.0 — the attachment id does not belong to the task/project in the URL. Reopen it from its own task. |
+| Blank modal on a large file | The attachment exceeds the read ceiling. See **Limitations**. |
 
 ---
 
@@ -185,7 +271,7 @@ Open your browser at `http://localhost:8080` (default login: `admin` / `admin`).
 
 ## 🧪 Testing & Quality Assurance
 
-The codebase includes an extensive automated test suite with **750+ unit and integration tests** and Level 8 static analysis:
+The codebase includes an extensive automated test suite with **770 unit and integration tests** and Level 8 static analysis:
 
 ```bash
 # Run the complete agentic automated verification pipeline
@@ -198,14 +284,40 @@ composer test
 composer phpstan
 ```
 
+If PHP and Composer are not on the host, `scripts/agent-verify.sh` routes everything
+through `php:8.1-cli` and `composer:2` containers automatically. To run the suite directly:
+
+```bash
+docker run --rm -v "$(pwd)":/app -w /app php:8.1-cli vendor/bin/phpunit
+```
+
+---
+
+## 🚀 Release Process
+
+`Plugin.php::getPluginVersion()` is the single source of truth; `composer.json` carries no
+`version` field on purpose, because it would fail `composer validate --strict`.
+
+1. Update `getPluginVersion()` and add the matching `## [x.y.z]` section to `CHANGELOG.md`.
+   `PackagingTest` fails if these disagree.
+2. `composer test && composer phpstan`
+3. `bash scripts/package-plugin.sh` → `dist/FileInteractionCore-<version>.zip`.
+   The archive is built from an explicit allow-list and the build aborts if a development
+   file leaks in or the root entry is not `FileInteractionCore/`.
+4. Tag and push: `git tag v<version> && git push origin v<version>`.
+   `.github/workflows/release.yml` re-verifies that the tag matches `Plugin.php`, rebuilds
+   the archive, extracts the changelog section, and publishes the GitHub Release with the
+   ZIP attached. Release archives are never committed to the repository.
+
 ---
 
 ## 🗺️ Roadmap & Next-Generation Features
 
-- **v1.0.0**: Production Release & Performance Benchmarking.
-- **v1.1.0**: File Revision Diff Viewer (side-by-side visual diff for versioned text & code).
-- **v1.2.0**: Memory-Safe Vector Graphics (`.webp`, sandboxed `.svg` preview).
-- **v1.3.0**: Full-Text Search Indexing for attachment contents.
+- **v1.0.0**: Production Release & Performance Benchmarking. *(released)*
+- **v1.1.0**: Object-level authorization hardening & contributability release. *(current)*
+- **v1.2.0**: File Revision Diff Viewer (side-by-side visual diff for versioned text & code).
+- **v1.3.0**: Memory-Safe Vector Graphics (`.webp`, sandboxed `.svg` preview).
+- **v1.4.0**: Full-Text Search Indexing for attachment contents.
 - **v2.0.0**: External Document Server Integration (WOPI / OnlyOffice / Collabora).
 
 See [docs/ROADMAP.md](docs/ROADMAP.md) for full details.
@@ -215,3 +327,6 @@ See [docs/ROADMAP.md](docs/ROADMAP.md) for full details.
 ## 📄 License
 
 This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
+
+Bundled third-party JavaScript keeps its own license; see [NOTICE](NOTICE) for the
+full attribution list.

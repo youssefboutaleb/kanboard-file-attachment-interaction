@@ -107,13 +107,13 @@ class CsvParserService
             $line = $rawLines[$lineIndex];
             
             // Native str_getcsv parsing
-            $row = str_getcsv($line, $detectedDelimiter);
+            $row = str_getcsv($line, $detectedDelimiter, '"', "\\");
             
             // Handle multiline quoted fields
             while (count($row) === 1 && isset($row[0]) && str_starts_with($row[0], '"') && !str_ends_with(trim($row[0]), '"') && ($lineIndex + 1) < $totalRawLines) {
                 $lineIndex++;
                 $line .= "\n" . $rawLines[$lineIndex];
-                $row = str_getcsv($line, $detectedDelimiter);
+                $row = str_getcsv($line, $detectedDelimiter, '"', "\\");
             }
 
             $colCount = count($row);

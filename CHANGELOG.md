@@ -5,6 +5,84 @@ All notable changes to `kanboard-file-interaction-core` will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-08-18
+
+Security release. **Upgrading is strongly recommended for every installation.**
+
+### Security
+
+- **Fixed cross-project attachment disclosure and overwrite (object-level authorization / IDOR).**
+  Kanboard authorizes these routes through `projectAccessMap`, which proves the caller
+  holds a role on the `project_id` **in the URL** and inspects nothing about `file_id`.
+  The controllers meanwhile loaded attachments with `getById($fileId)`, keyed on the id
+  alone, and only fell back to the row's own `task_id`/`project_id` when the URL values
+  were `0` — so on the real routes the file's true owner was never compared to anything.
+
+  Any user could therefore name a project they legitimately belong to in the path and a
+  foreign attachment id in the query:
+
+      /b/<project the caller can access>/task/<any>/file/<file in a FOREIGN project>/preview
+
+  The ACL passed and the foreign file's bytes were previewed, streamed, opened in the
+  editor, or — through `FileEditController::update()` — **overwritten**.
+
+  `HandlesAttachmentInteraction::assertAttachmentOwnership()` now joins `file_id` to the
+  task and project named in the URL before any bytes are read, on all four actions
+  (`preview`, `stream`, `edit`, `update`). Covered by `tests/Unit/AttachmentAuthorizationTest.php`.
+
+- **Fixed the plugin's ACL layer being inert at runtime.**
+  `PermissionService` defaulted to `MockPermissionChecker(true)` — an allow-everything
+  stub written for unit tests — and no controller ever injected anything else, so every
+  `canUserReadFile()` / `canUserWriteFile()` call returned `true` in production. The new
+  `KanboardPermissionChecker` is backed by Kanboard's own `projectPermissionModel` and
+  `userSession` and is installed automatically whenever the container provides them. It
+  fails closed: a checker that cannot reach the models it needs answers "no".
+
+- **Project viewers can no longer overwrite attachments.**
+  `canUserWriteFile()` aliased `canUserReadFile()`, so read access implied write access.
+  Write now requires `isMember()` rather than `isUserAllowed()`.
+
+### Added
+
+- `Plugin::getCompatibleVersion()` returning `>=1.2.23` — the release in which Kanboard
+  added the `template:project-overview:documents:dropdown` hook this plugin attaches to.
+  Without the override, the inherited default claims compatibility with whatever core is
+  running and the hook fails silently on older versions.
+- `NOTICE` recording the license and provenance of the bundled third-party JavaScript.
+- `tests/Integration/PackagingTest.php` and `tests/bootstrap.php`.
+
+### Changed
+
+- **Packaging is now an allow-list.** The exclude-based rsync shipped `CLAUDE.md`,
+  `AGENTS.md`, `implementation_plan.md`, `settings.json`, `.phpunit.result.cache` and
+  154 KB of `walkthrough.md` to end users. The archive now contains only the runtime plus
+  `LICENSE`/`NOTICE`/`README`/`CHANGELOG`, and the build fails if a development file
+  appears in it or if the archive root entry is not `FileInteractionCore/`.
+- Licensing is consistent. `LICENSE` and the metadata had drifted apart — the LICENSE
+  file said one thing while `composer.json` and the README said another. Everything now
+  declares **MIT**, matching the `LICENSE` file, and `tests/Integration/PackagingTest.php`
+  fails if they ever disagree again.
+
+### Removed
+
+- `Assets/js/preview-language-selector.js` — a verbatim duplicate of the language-picker
+  handler already in `preview-controls.js`. Both registered their own delegated `change`
+  listener, so a single language change fired **two** `KB.modal.replace()` calls and the
+  modal was fetched and rebuilt twice.
+- `require_once __DIR__ . '/../../tests/stubs/BaseController.php'` from
+  `FilePreviewController` and `FileStreamController`. Production classes must not
+  reference `tests/`, which the release archive excludes; the stub now loads from
+  `tests/bootstrap.php` instead.
+
+### Known issues
+
+- `Assets/js/vendor/pptx-viewer.umd.js` has **unresolved provenance** — no license
+  banner, copyright, version or upstream identifier. See `NOTICE`. This must be closed
+  before the plugin is submitted to the Kanboard plugin directory or a release archive
+  containing it is published.
+
+---
+
 ## [1.0.1] - 2026-08-18
 
 Author Metadata Update & Patch Release.
